@@ -9,13 +9,18 @@ from src.sdlccopilot.requests import ProjectRequirementsRequest, OwnerFeedbackRe
 from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse
 from src.sdlccopilot.prompts.functional_document import functional_document
 from src.sdlccopilot.prompts.technical_document import technical_document
+from src.sdlccopilot.llms.groq import GroqLLM
 
 
 # Initialize FastAPI
 app = FastAPI(title="User Stories Generator API")
 
 # Initialize the user story workflow
-user_story_graph_builder = UserStoryGraphBuilder()
+llm = GroqLLM(model_name="deepseek-r1-distill-llama-70b").get()
+if not llm:
+    raise Exception("Error: Groq LLM model could not be initialized.")
+
+user_story_graph_builder = UserStoryGraphBuilder(llm)
 user_story_workflow = user_story_graph_builder.build()
 
 # Initialize the design document workflow
@@ -86,7 +91,6 @@ async def generate_user_stories(request: ProjectRequirementsRequest):
             "story_messages": state["user_stories_messages"]
         }
 
-        print("********* state : ", state)
         return UserStoriesResponse(
             session_id=session_id,
             project_requirements=project_requirements,
@@ -118,8 +122,6 @@ async def review_user_stories(session_id: str, request: OwnerFeedbackRequest):
         for event in user_story_workflow.stream(None, thread, stream_mode="values"):
             state = event
 
-        print("********* state in feedback: ", state)
-
         active_sessions[session_id] = {
             "project_requirements": state["project_requirements"],
             "user_stories": state["user_stories"],
@@ -143,9 +145,6 @@ async def review_user_stories(session_id: str, request: OwnerFeedbackRequest):
 async def create_functional_design_documents(session_id: str):
     if session_id not in active_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-
-    project_requirements = active_sessions[session_id]["project_requirements"]
-    user_stories = active_sessions[session_id]["user_stories"]
 
     try:    
         initial_document_state = {
