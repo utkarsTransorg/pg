@@ -11,17 +11,15 @@ app_port: 7860
 
 **AI-Powered Assistant for Automating the Software Development Lifecycle (SDLC)**
 
-## To run the FASTAPI
-
-`uvicorn app:app --reload`
-
 ## **📌 Overview**
 
 **SDLC Copilot** is an **Agentic AI** system designed to streamline and automate the **Software Development Lifecycle (SDLC)**. From requirement gathering to deployment and maintenance, SDLC Copilot leverages AI to optimize development workflows, reduce manual effort, and ensure software quality.
 
 Whether you’re a solo developer, a startup, or an enterprise, SDLC Copilot acts as your AI-driven assistant to accelerate development, enforce best practices, and enhance collaboration across teams.
 
----
+## Frontend app
+
+## `https://github.com/shubhamprajapati7748/sdlc-copilot-frontend`
 
 ## **✨ Features**
 
@@ -67,48 +65,41 @@ Whether you’re a solo developer, a startup, or an enterprise, SDLC Copilot act
 - **Predictive maintenance** using historical data and AI analytics.
 - Automated **patching and updates** with zero downtime strategies.
 
----
+## **🛠 Tech Stack**
 
-<!-- ## **🛠 Tech Stack**
-- **AI/ML**: OpenAI, LangChain, Hugging Face, TensorFlow
-- **Backend**: Golang, Python, FastAPI, Node.js
+- **AI/ML**: OpenAI, LangChain, Hugging Face
+- **Backend**: Python, FastAPI
 - **Frontend**: React.js, Next.js
-- **Database**: PostgreSQL, MongoDB
-- **CI/CD**: GitHub Actions, Jenkins, Docker, Kubernetes
-- **Security**: OWASP, SonarQube, SAST, DAST
-- **Cloud**: AWS, GCP, Azure
+- **CI/CD**: GitHub Actions,, Docker
+- **LLMs** : ChatGPT, Cluade, Deepseek
 
---- -->
-
-<!-- ## **🚀 Getting Started**
+## **🚀 Getting Started**
 
 ### **1️⃣ Prerequisites**
+
 - Install **Docker** and **Docker Compose**
-- Install **Node.js** and **Yarn/NPM**
 - Install **Python 3.8+** and **pip**
 
 ### **2️⃣ Installation**
+
 Clone the repository:
+
 ```bash
-git clone https://github.com/your-repo/sdlc-copilot.git
+git clone https://github.com/shubhamprajapati7748/sdlc-copilot.git
 cd sdlc-copilot
 ```
+
 Run the setup:
+
 ```bash
 docker-compose up -d
 ```
+
 Start the backend:
+
 ```bash
-cd backend
-pip install -r requirements.txt
-python main.py
+uvicorn app:app --reload
 ```
-Start the frontend:
-```bash
-cd frontend
-yarn install
-yarn start
-``` -->
 
 ---
 
