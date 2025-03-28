@@ -1,0 +1,15 @@
+"Act as a professional Technical Writer. Create a comprehensive Functional Specification Document in Word format for a [your app name] React web application. The app does [brief functionality]. The document should include:
+
+Title Page
+
+Table of Contents
+
+1. Introduction (Purpose, Scope)
+
+2. Functional Requirements (with clear use-cases and acceptance criteria)
+
+3. User Roles and Permissions
+
+4. Version History
+
+Make it professional, structured, and compatible with Microsoft Word formatting."
