@@ -19,7 +19,7 @@ class DesignDocumentsResponse(BaseModel):
     version: float = 1.0
     document_type: Literal["functional", "technical"]
     status: Literal["in_progress", "pending_approval", "feedback", "completed"]
-    document : List[DocumentSection]
+    document : str
     messages: List[AnyMessage]
    
 class CodeResponse(BaseModel):

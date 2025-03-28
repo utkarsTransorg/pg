@@ -7,6 +7,9 @@ from src.sdlccopilot.graph.design_document_graph import DesignDocumentGraphBuild
 from src.sdlccopilot.graph.code_development_graph import CodeDevelopmentGraphBuilder
 from src.sdlccopilot.requests import ProjectRequirementsRequest, OwnerFeedbackRequest
 from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse
+from src.sdlccopilot.prompts.functional_document import functional_document
+from src.sdlccopilot.prompts.technical_document import technical_document
+
 
 # Initialize FastAPI
 app = FastAPI(title="User Stories Generator API")
@@ -179,7 +182,7 @@ async def create_functional_design_documents(session_id: str):
             session_id=session_id,
             document_type=document_state["document_type"],
             status=document_state["functional_status"],
-            document=document_state['functional_documents'],
+            document= functional_document,
             messages=document_state["messages"]
         )
 
@@ -222,7 +225,7 @@ async def create_technical_design_documents(session_id: str):
             session_id=session_id,
             document_type=document_state["document_type"],
             status=document_state["technical_status"],
-            document=document_state['technical_documents'],
+            document=technical_document,
             messages=document_state["messages"]
         )
 
@@ -260,12 +263,12 @@ async def review_functional_design_documents(session_id: str, request: OwnerFeed
             "technical_status": document_state["technical_status"],
             "document_version": document_state["version"]
         }
-
         return DesignDocumentsResponse.model_construct(
             session_id=session_id,
             document_type=document_state["document_type"],
             status=document_state["functional_status"],
-            document=document_state['functional_documents'],
+            # Todo
+            document = functional_document,
             messages=document_state["messages"]
         )
 
@@ -308,7 +311,7 @@ async def review_technical_design_documents(session_id: str, request: OwnerFeedb
             session_id=session_id,
             document_type=document_state["document_type"],
             status=document_state["technical_status"],
-            document=document_state['technical_documents'],
+            document= technical_document,
             messages=document_state["messages"]
         )
 

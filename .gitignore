@@ -1,3 +1,4 @@
 .env
 sdvenv/
 __pycache__/
+notebooks/
