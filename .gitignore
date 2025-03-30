@@ -1,4 +1,4 @@
 .env
-sdvenv/
+venv/
 __pycache__/
 logs/
