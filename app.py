@@ -6,7 +6,7 @@ from src.sdlccopilot.graph.user_story_graph import UserStoryGraphBuilder
 from src.sdlccopilot.graph.design_document_graph import DesignDocumentGraphBuilder
 from src.sdlccopilot.graph.code_development_graph import CodeDevelopmentGraphBuilder
 from src.sdlccopilot.requests import ProjectRequirementsRequest, OwnerFeedbackRequest
-from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse
+from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse, SecurityReviewResponse, SecurityReview, TestCasesResponse, TestCase
 from src.sdlccopilot.prompts.functional_document import functional_document
 from src.sdlccopilot.prompts.technical_document import technical_document
 from src.sdlccopilot.llms.groq import GroqLLM
@@ -316,6 +316,7 @@ async def review_technical_design_documents(session_id: str, request: OwnerFeedb
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
 
 ## Code Development
 @app.post("/code/frontend/generate/{session_id}", response_model=CodeResponse)
@@ -363,6 +364,36 @@ async def generate_frontend_code(session_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+@app.post("/code/frontend/review/{session_id}", response_model=CodeResponse)
+async def review_frontend_code(session_id: str, request: OwnerFeedbackRequest):
+    print("********* review_frontend_code : ", session_id)
+    feedback = request.feedback
+
+    if session_id not in active_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if active_sessions[session_id]["frontend_status"] != "pending_approval":
+        raise HTTPException(status_code=400, detail="Frontend code is not pending approval")
+
+    try:   
+        active_sessions[session_id] = {
+            **active_sessions[session_id],    
+            "frontend_code": active_sessions[session_id]["frontend_code"],
+            "frontend_messages": active_sessions[session_id]["frontend_messages"],
+            "frontend_status": "completed",
+        } 
+        
+        return CodeResponse.model_construct(
+            session_id=session_id,
+            code_type="frontend",
+            status="completed",
+            code=active_sessions[session_id]["frontend_code"],
+            messages=active_sessions[session_id]["frontend_messages"],
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/code/backend/generate/{session_id}", response_model=CodeResponse)
 async def generate_backend_code(session_id: str):
@@ -405,3 +436,203 @@ async def generate_backend_code(session_id: str):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/code/backend/review/{session_id}", response_model=CodeResponse)
+async def review_backend_code(session_id: str, request: OwnerFeedbackRequest):
+    print("********* review_backend_code : ", session_id)
+    feedback = request.feedback
+
+    if session_id not in active_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if active_sessions[session_id]["backend_status"] != "pending_approval":
+        raise HTTPException(status_code=400, detail="Backend code is not in pending approval")
+
+    try:   
+        active_sessions[session_id] = {
+            **active_sessions[session_id],    
+            "backend_code": active_sessions[session_id]["backend_code"],
+            "backend_messages": active_sessions[session_id]["backend_messages"],
+            "backend_status": "completed",
+        } 
+        
+        return CodeResponse.model_construct(
+            session_id=session_id,
+            code_type="backend",
+            status="completed",
+            code=active_sessions[session_id]["backend_code"],
+            messages=active_sessions[session_id]["backend_messages"],
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/security/review/get/{session_id}", response_model=SecurityReviewResponse)
+async def get_security_review(session_id : str):
+    print("********* get_security_review : ", session_id)
+    if session_id not in active_sessions:
+        raise HTTPException(status_code = 404, detail = "Session not found")
+    
+    try:
+        reviews = [
+            SecurityReview(
+                sec_id = "SEC-001",
+                review = "Insecure password storage: Passwords are stored using bcryptjs with a salt of 10, which is relatively  low slat value. This makes it vulnerable to brute-force attacks.",
+                file_path = "backend/src/controllers/authController.js",
+                recommendation = "Increase the salt value to at least 12 and consider using more secure passwords hashing algorithms like Argon2 or PBKDF2. ",
+                priority = "high"
+            ),
+            SecurityReview(
+                sec_id = "SEC-002",
+                review = "Lack of input validation : the register and login endpoints do not validate the user input, making them vulnerable  to SQL injection and cross site scripting attacks.",
+                file_path = " backend/src/controllers/autheController.js",
+                recommendation = "Implementation input validation inout a library like Joi and express-validator to ensure that the input conforms to expected formats.",
+                priority = "medium"
+            )
+        ]
+        
+        active_sessions[session_id] = {
+            **active_sessions[session_id],
+            "security_review": reviews,
+            "security_status": "pending_approval",
+            "security_messages": []
+        }
+        
+        return SecurityReviewResponse.model_construct(
+            session_id = session_id,
+            status = "pending_approval",
+            reviews = reviews,
+            messages = []
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code = 500, detail = str(e))
+
+
+@app.post("/security/review/review/{session_id}", response_model=SecurityReviewResponse)
+async def review_security_review(session_id: str, request: OwnerFeedbackRequest):
+    feedback = request.feedback
+
+    if session_id not in active_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if active_sessions[session_id]["security_status"] != "pending_approval":
+        raise HTTPException(status_code=400, detail="Security review is not pending approval")
+
+    try:   
+        active_sessions[session_id] = {
+            **active_sessions[session_id],
+            "security_review": active_sessions[session_id]["security_review"],
+            "security_status": "completed",
+            "security_messages": []
+        } 
+
+        return SecurityReviewResponse.model_construct(
+            session_id=session_id,
+            status="completed",
+            reviews=active_sessions[session_id]["security_review"],
+            messages=[]
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@app.get("/test/cases/get/{session_id}", response_model=TestCasesResponse)
+async def get_test_cases(session_id : str):
+    print("********* get_test_cases : ", session_id)
+    if session_id not in active_sessions:
+        raise HTTPException(status_code = 404, detail = "Session not found")
+    
+    try:
+        
+        test_cases = [
+            TestCase(
+                test_id = "TC-001",
+                description = "Test GPS Processing function",
+                steps = ["Input sample GPS data", "Process data using the GPS processing function", "Verify output matches expected format"],
+                status = "draft"
+            ),
+        ]
+        
+        active_sessions[session_id] = {
+            **active_sessions[session_id],
+            "test_cases": test_cases,
+            "test_cases_status": "pending_approval",
+            "test_cases_messages": []
+        }
+        
+        return TestCasesResponse.model_construct(
+            session_id = session_id,
+            status = "pending_approval",
+            test_cases = test_cases,
+            messages=[]
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code = 500, detail = str(e))
+
+
+@app.post("/test/cases/review/{session_id}", response_model=TestCasesResponse)
+async def review_test_cases(session_id: str, request: OwnerFeedbackRequest):
+    feedback = request.feedback
+
+    if session_id not in active_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if active_sessions[session_id]["test_cases_status"] != "pending_approval":
+        raise HTTPException(status_code=400, detail="Test cases are not pending approval")
+
+    try:   
+        active_sessions[session_id] = {
+            **active_sessions[session_id],
+            "test_cases": active_sessions[session_id]["test_cases"],
+            "test_cases_status": "completed",
+            "test_cases_messages": []
+        } 
+
+        return TestCasesResponse.model_construct(
+            session_id=session_id,
+            status="completed",
+            test_cases=active_sessions[session_id]["test_cases"],
+            messages=[]
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/qa/testing/get/{session_id}", response_model=TestCasesResponse)
+async def get_qa_testing(session_id : str):
+    print("********* get_qa_testing : ", session_id)
+    if session_id not in active_sessions:
+        raise HTTPException(status_code = 404, detail = "Session not found")
+    
+    try:
+        test_cases = [
+            TestCase(
+                test_id = "TC-001",
+                description = "Test GPS Processing function",
+                steps = ["Input sample GPS data", "Process data using the GPS processing function", "Verify output matches expected format"],
+                status = "pass"
+            ),
+        ]
+        
+        active_sessions[session_id] = {
+            **active_sessions[session_id],
+            "test_cases": test_cases,
+            "test_cases_status": "passed",
+            "test_cases_messages": []
+        }
+        
+        return TestCasesResponse.model_construct(
+            session_id = session_id,
+            status = "passed",
+            test_cases = test_cases,
+            messages=[]
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code = 500, detail = str(e))
