@@ -21,12 +21,6 @@ class UserStoryGraphBuilder:
         self.graph_builder.add_node("generate_user_stories", story_nodes.generate_user_stories)
         self.graph_builder.add_node("user_stories_review", story_nodes.user_stories_review)
         self.graph_builder.add_node("revised_user_stories", story_nodes.revised_user_stories)
-
-        # self.graph_builder.add_node("process_project_requirements", process_project_requirements)
-        # self.graph_builder.add_node("generate_user_stories", generate_user_stories)
-        # self.graph_builder.add_node("user_stories_review", user_stories_review)
-        # self.graph_builder.add_node("should_revise_user_stories", should_revise_user_stories)
-        # self.graph_builder.add_node("revised_user_stories", revised_user_stories)
         
         self.graph_builder.add_edge(START, "process_project_requirements")
         self.graph_builder.add_edge("process_project_requirements", "generate_user_stories")
