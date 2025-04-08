@@ -2,12 +2,6 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser 
 output_parser = JsonOutputParser()
 
-generate_user_story_prompt = PromptTemplate(
-    template="{system_prompt} \n {format_instruction} \n {human_query} \n",
-    input_variables= ["system_prompt", "human_query",],
-    partial_variables={"format_instruction" : output_parser.get_format_instructions()}
-)
-
 generate_user_stories_system_prompt = """
 **ROLE & OBJECTIVE**
 
@@ -54,7 +48,6 @@ You are an expert Agile Product Owner. Your task is to analyze structured projec
 🚫 Avoid vagueness, missing criteria, or unnecessary technical details.
 """
 
-
 revised_user_stories_system_prompt = """
 # **ROLE & OBJECTIVE**  
 You are an expert Agile Product Owner. Your task is to analyze the user stories based on user feedback and refine user stories with existing user stories and return the output in the JSON format only. 
@@ -95,7 +88,6 @@ GUIDELINES:
 ✅ Acceptance criteria must be **2 to 4** points.  
 🚫 Avoid unnecessary technical details or vague requirements.  
 """
-
 
 CONSTANT_USER_STORIES = [
         {
