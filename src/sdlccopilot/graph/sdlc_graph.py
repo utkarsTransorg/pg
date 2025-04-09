@@ -6,6 +6,8 @@ from src.sdlccopilot.nodes.user_story_nodes import UserStoryNodes
 from src.sdlccopilot.nodes.functional_document_nodes import FunctionalDocumentNodes
 from src.sdlccopilot.nodes.technical_document_nodes import TechnicalDocumentNodes
 from src.sdlccopilot.nodes.code_development_nodes import CodeDevelopmentNodes
+from src.sdlccopilot.nodes.test_cases_nodes import TestCaseNodes
+from src.sdlccopilot.nodes.security_review_nodes import SecurityReviewNodes
 from IPython.display import Image, display
 from src.sdlccopilot.llms.gemini import GeminiLLM
 from src.sdlccopilot.llms.groq import GroqLLM
@@ -24,6 +26,8 @@ class SDLCGraphBuilder:
         self.functional_document_node = FunctionalDocumentNodes(gwen_llm)
         self.technical_document_node = TechnicalDocumentNodes(gwen_llm)
         self.code_development_node = CodeDevelopmentNodes(anthropic_llm)
+        self.test_case_node = TestCaseNodes(gemini_llm)
+        self.security_review_node = SecurityReviewNodes(gemini_llm)
         
     def build(self):
         """
@@ -56,6 +60,17 @@ class SDLCGraphBuilder:
         self.sdlc_graph_builder.add_node("generate_backend_code", self.code_development_node.generate_backend_code)
         self.sdlc_graph_builder.add_node("review_backend_code", self.code_development_node.review_backend_code)
         self.sdlc_graph_builder.add_node("fix_backend_code", self.code_development_node.fix_backend_code)
+        
+        ## Security Review
+        self.sdlc_graph_builder.add_node("generate_security_reviews", self.security_review_node.generate_security_reviews)
+        self.sdlc_graph_builder.add_node("security_review", self.security_review_node.security_review)
+        self.sdlc_graph_builder.add_node("fix_code_after_security_review", self.security_review_node.fix_code_after_security_review)
+        
+    
+        ## Test Cases
+        self.sdlc_graph_builder.add_node("write_test_cases", self.test_case_node.write_test_cases)
+        self.sdlc_graph_builder.add_node("test_cases_review", self.test_case_node.test_cases_review)
+        self.sdlc_graph_builder.add_node("fixed_testcases_after_review", self.test_case_node.fixed_testcases_after_review)
                 
         ## Adding edges
         ## User Story
@@ -100,13 +115,38 @@ class SDLCGraphBuilder:
             self.code_development_node.should_fix_backend_code,
             {
                 "feedback" : "fix_backend_code",
-                "approved" : END # TODO : Add security reviews
+                "approved" : "generate_security_reviews" 
             }
         )
         self.sdlc_graph_builder.add_edge("fix_backend_code", "review_backend_code")
+        
+        ## Security Review
+        self.sdlc_graph_builder.add_edge("generate_security_reviews", "security_review")
+        self.sdlc_graph_builder.add_conditional_edges(
+            "security_review",
+            self.security_review_node.should_fix_code_after_security_review,
+            {
+                "feedback" : "fix_code_after_security_review",
+                "approved" : "write_test_cases"
+            }
+        )
+        self.sdlc_graph_builder.add_edge("fix_code_after_security_review", "review_backend_code")
+
+        ## test cases
+        self.sdlc_graph_builder.add_edge("write_test_cases", "test_cases_review")
+        self.sdlc_graph_builder.add_conditional_edges(
+            "test_cases_review",
+            self.test_case_node.should_fix_test_cases,
+            {
+                "feedback" : "fixed_testcases_after_review",
+                "approved" : END # TODO : QA testing
+            }
+        )
+
+        self.sdlc_graph_builder.add_edge("fixed_testcases_after_review", "test_cases_review")
                 
         memory = MemorySaver()
-        sdlc_workflow = self.sdlc_graph_builder.compile(checkpointer=memory, interrupt_before=['review_user_stories', 'review_functional_documents', 'review_technical_documents', 'review_frontend_code', 'review_backend_code'])
+        sdlc_workflow = self.sdlc_graph_builder.compile(checkpointer=memory, interrupt_before=['review_user_stories', 'review_functional_documents', 'review_technical_documents', 'review_frontend_code', 'review_backend_code', 'security_review', 'test_cases_review'])
         logging.info("SDLC workflow built successfully !!!")
         return sdlc_workflow
     
