@@ -1,95 +1,121 @@
 from typing import Literal
-from src.sdlccopilot.prompts.frontend_code import frontend_code
-from src.sdlccopilot.prompts.backend_code import backend_code
-from src.sdlccopilot.states.code import CodeState
 from langchain_core.messages import AIMessage
+from src.sdlccopilot.helpers.code import CodeHelper
+from src.sdlccopilot.logger import logging
+from src.sdlccopilot.states.sdlc import SDLCState
 
-def generate_code(state : CodeState) -> CodeState:
-    print("In generate_code")
-    code_type = state.code_type.lower()
-
-    generate_code = ''
-    if code_type == 'frontend' :
-        generate_code = frontend_code
-    else:
-        generate_code = backend_code
-
-    return {
-        "code_type" : code_type,
-        f"{code_type}_code" : generate_code,
-        f"{code_type}_status": 'pending_approval',
-        f"{code_type}_messages": AIMessage(
-            content=f"Please review above {code_type} design document and provide feedback or type 'Approved' if you're satisfied."
-        ),
-    }
-
-def code_review(state : CodeState) -> CodeState:
-    print("In code_review")
-
-    message_content = ''
-    if state.code_type == 'frontend':
-        message_content = state.frontend_messages[-1].content.lower().strip()
-    else : 
-        message_content = state.backend_messages[-1].content.lower().strip()
-
-    print("user feedback:", message_content)
-    approved = message_content == "approved"
-    code_type = state.code_type.lower()
-
-    return {
-        f"{code_type}_messages":AIMessage(
-            content="Great! Code have been finalized. You can now proceed with next steps."
-            if approved else
-            "I've received your feedback. I'll revise the design documents accordingly."),
-        f"{code_type}_status": "completed" if approved else "feedback"
-    }
-
-
-def should_fix_code(state : CodeState) -> Literal["feedback", "approved"]:
-    print("In should_fix_code")
-    if state.code_type == 'frontend':
-        return "feedback" if state.frontend_status == "feedback" else "approved"
+class CodeDevelopmentNodes:
+    def __init__(self, llm): 
+        self.code_helper = CodeHelper(llm)
     
-    if state.code_type == 'backend':
-        return "feedback" if state.backend_status == "feedback" else "approved"
-    
-    return "approved"
-
-
-def fix_code(state : CodeState) -> CodeState:
-    print("In fix_code")
-
-    code_type = None
-    if state.frontend_status == 'feedback':
+    ## Frontend Code Development Nodes
+    def generate_frontend_code(self, state : SDLCState) -> SDLCState:
+        logging.info("In generate_frontend_code...")
+        frontend_code = self.code_helper.generate_frontend_code_from_llm(state.user_stories)
         code_type = "frontend"
-    elif state.backend_status == 'feedback':
-        code_type = "backend"
-
-    if not code_type:
-        return state  # No feedback status, return state unchanged
-
-    revised_count = state.revised_count + 1
-    print("revised_count :", revised_count)
-
-    if revised_count == 3:
+        logging.info(f"Generated frontend code")
         return {
-            "messages": AIMessage(
-                content="Code have been revision maxed out. Please review the above code and continue with the next step."
+            f"{code_type}_code" : frontend_code,
+            f"{code_type}_status": 'pending_approval',
+            f"{code_type}_messages": AIMessage(
+                content=f"Please review {code_type} design document and provide feedback or type 'Approved' if you're satisfied."
             ),
-            f"{code_type}_status": "completed"
+        }
+
+    def review_frontend_code(self, state : SDLCState) -> SDLCState:
+        logging.info("In review_frontend_code")
+        user_feedback = state.frontend_messages[-1].content.lower().strip()
+        logging.info(f"User feedback: {user_feedback}")
+        approved = user_feedback == "approved"
+        code_type = "frontend"
+        return {
+            f"{code_type}_messages":AIMessage(
+                content="Great! Code have been finalized. You can now proceed with next steps."
+                if approved else
+                "I've received your feedback. I'll revise the design documents accordingly."),
+            f"{code_type}_status": "approved" if approved else "feedback"
+        }
+
+    def should_fix_frontend_code(self, state : SDLCState) -> Literal["feedback", "approved"]:
+        return "approved" if state.frontend_status == 'approved' else 'feedback'
+
+    def fix_frontend_code(self, state : SDLCState) -> SDLCState:
+        logging.info("In fix_frontend_code...")
+        code_type = "frontend"
+        user_feedback = state.frontend_messages[-2].content.lower().strip()
+        revised_count = state.revised_count + 1
+        logging.info(f"revised_count : {revised_count}")
+
+        if revised_count == 3:
+            return {
+                f"{code_type}_messages": AIMessage(
+                    content="Code have been revision maxed out. Please review the code and continue with the next step."
+                ),
+                f"{code_type}_status": "approved"
+            }
+        
+        revised_code = self.code_helper.revised_frontend_code_from_llm(state.frontend_code, user_feedback)
+        return {
+            f"{code_type}_code": revised_code,
+            f"{code_type}_messages": AIMessage(
+                content=f"Please review revised {code_type} code and provide additional feedback or type 'Approved' if you're satisfied."
+            ),
+            f"{code_type}_status": "pending_approval",
+            "revised_count": revised_count
         }
     
-    revised_code = ''
-    if code_type == 'frontend' :
-        revised_code = "console.log('Revised frontend')"
-    else:
-        revised_code = "print('Revised backend!')"
+    def generate_backend_code(self, state : SDLCState) -> SDLCState:
+        logging.info("In generate_backend_code...")
+        backend_code = self.code_helper.generate_backend_code_from_llm(state.user_stories)
+        code_type = "backend"
+        logging.info(f"Generated backend code")
+        return {
+            f"{code_type}_code" : backend_code,
+            f"{code_type}_status": 'pending_approval',
+            f"{code_type}_messages": AIMessage(
+                content=f"Please review {code_type} design document and provide feedback or type 'Approved' if you're satisfied."
+            ),
+        }
 
-    return {
-        f"{code_type}_code": revised_code,
-        f"{code_type}_messages": AIMessage(
-            content=f"Please review above revised {code_type} code and provide additional feedback or type 'Approved' if you're satisfied."
-        ),
-        f"{code_type}_status": "pending_approval",
-        "revised_count": revised_count
-    }
+    def review_backend_code(self, state : SDLCState) -> SDLCState:
+        logging.info("In review_backend_code")
+        user_feedback = state.backend_messages[-1].content.lower().strip()
+        logging.info(f"User feedback: {user_feedback}")
+        approved = user_feedback == "approved"
+        code_type = "backend"
+        return {
+            f"{code_type}_messages":AIMessage(
+                content="Great! Code have been finalized. You can now proceed with next steps."
+                if approved else
+                "I've received your feedback. I'll revise the design documents accordingly."),
+            f"{code_type}_status": "approved" if approved else "feedback"
+        }
+
+    def should_fix_backend_code(self, state : SDLCState) -> Literal["feedback", "approved"]:
+        return "approved" if state.backend_status == 'approved' else 'feedback'
+
+    def fix_backend_code(self, state : SDLCState) -> SDLCState:
+        logging.info("In fix_backend_code...")
+        code_type = "backend"
+        user_feedback = state.backend_messages[-2].content.lower().strip()
+        revised_count = state.revised_count + 1
+        logging.info(f"revised_count : {revised_count}")
+
+        if revised_count == 3:
+            return {
+                f"{code_type}_messages": AIMessage(
+                    content="Code have been revision maxed out. Please review the code and continue with the next step."
+                ),
+                f"{code_type}_status": "approved"
+            }
+        
+        revised_code = self.code_helper.revised_backend_code_from_llm(state.backend_code, user_feedback)
+        return {
+            f"{code_type}_code": revised_code,
+            f"{code_type}_messages": AIMessage(
+                content=f"Please review revised {code_type} code and provide additional feedback or type 'Approved' if you're satisfied."
+            ),
+            f"{code_type}_status": "pending_approval",
+            "revised_count": revised_count
+        }
+        

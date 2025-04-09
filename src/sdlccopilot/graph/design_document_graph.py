@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from src.sdlccopilot.states.document import DocumentState
-from src.sdlccopilot.nodes.design_document_nodes import create_design_documents, should_revise_design_documents, revised_design_documents, design_documents_review
+from src.sdlccopilot.nodes.functional_document_nodes import create_design_documents, should_revise_design_documents, revised_design_documents, design_documents_review
 from langgraph.checkpoint.memory import MemorySaver
 
 class DesignDocumentGraphBuilder:

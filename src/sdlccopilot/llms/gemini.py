@@ -2,12 +2,13 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 class GeminiLLM:
-    def __init__(self):
+    def __init__(self, model_name):
+        self.model_name = model_name
         pass
 
     def get(self):
         return ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model=self.model_name,
             temperature=0,
             max_tokens=None,
             timeout=None,

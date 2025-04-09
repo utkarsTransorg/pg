@@ -35,7 +35,7 @@ class UserStoryNodes:
         logging.info("In review_user_stories...")
         user_review = state.user_story_messages[-1].content
         user_review = user_review.lower().strip()
-        logging.info(f"user_review : {user_review}")  
+        logging.info(f"user_feedback : {user_review}")  
         if user_review == "approved":
             logging.info("User stories approved !!!")
             return {
