@@ -16,6 +16,7 @@ class UserStoryHelper:
             chain = json_prompt_template | self.llm | json_output_parser
             response = chain.invoke({"system_prompt" : generate_user_stories_system_prompt, "human_query" : user_query})
             logging.info("User stories generated with LLM.")
+            logging.info(f"In generate_user_stories_with_llm : {response}")
             return response
         except Exception as e:
             logging.error(f"Error generating user stories: {str(e)}")
@@ -28,6 +29,7 @@ class UserStoryHelper:
             chain = json_prompt_template | self.llm | json_output_parser
             response = chain.invoke({"system_prompt" : revised_user_stories_system_prompt, "human_query" : user_query})
             logging.info("User stories revised with LLM.")
+            logging.info(f"In revised_user_stories_with_llm : {response}")
             return response
         except Exception as e:
             logging.error(f"Error revising user stories: {str(e)}")

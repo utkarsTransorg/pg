@@ -18,6 +18,7 @@ class SecurityReviewHelper:
             user_query =  f"Analyze this backend code: {backend_code} and create the security reviews for the code" 
             chain = json_prompt_template | self.gemini_llm  | json_output_parser
             response = chain.invoke({"system_prompt" : security_reviews_system_prompt, "human_query" : user_query})
+            logging.info(f"In generate_security_reviews_from_llm : {response}")
             logging.info("Security reviews generated with LLM.")
             return response
         except Exception as e:
@@ -31,6 +32,7 @@ class SecurityReviewHelper:
             chain = prompt_template | self.anthropic_llm
             response = chain.invoke({"system_prompt" : CODE_SYSTEM_PROMPT, "human_query" : user_query})
             logging.info("Backend code revised according to security reviews with LLM.")
+            logging.info(f"In revised_backend_code_with_security_reviews_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error revising backend code: {str(e)}")

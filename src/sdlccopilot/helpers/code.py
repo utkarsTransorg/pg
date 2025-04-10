@@ -15,6 +15,7 @@ class CodeHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : CODE_SYSTEM_PROMPT, "human_query" : user_query})
             logging.info("Frontend code generated with LLM.")
+            logging.info(f"In generate_frontend_code_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error generating frontend code: {str(e)}")
@@ -27,6 +28,7 @@ class CodeHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : CODE_SYSTEM_PROMPT, "human_query" : user_query})
             logging.info("Frontend code revised with LLM.")
+            logging.info(f"In revised_frontend_code_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error revising frontend code: {str(e)}")
@@ -39,6 +41,7 @@ class CodeHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : CODE_SYSTEM_PROMPT, "human_query" : user_query})
             logging.info("Backend code generated with LLM.")
+            logging.info(f"In generate_backend_code_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error generating backend code: {str(e)}")
@@ -51,6 +54,7 @@ class CodeHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : CODE_SYSTEM_PROMPT, "human_query" : user_query})
             logging.info("Backend code revised with LLM.")
+            logging.info(f"In revised_backend_code_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error revising backend code: {str(e)}")

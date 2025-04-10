@@ -15,6 +15,7 @@ class DocumentHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : functional_document_system_prompt, "human_query" : user_query})
             logging.info("Functional document generated with LLM.")
+            logging.info(f"In generate_functional_document_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error generating functional document: {str(e)}")
@@ -27,6 +28,7 @@ class DocumentHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : revised_functional_document_system_prompt, "human_query" : user_query})
             logging.info("Functional document revised with LLM.")
+            logging.info(f"In revised_functional_document_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error revising functional document: {str(e)}")
@@ -39,6 +41,7 @@ class DocumentHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : technical_document_system_prompt, "human_query" : user_query})
             logging.info("Technical document generated with LLM.")
+            logging.info(f"In generate_technical_document_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error generating technical document: {str(e)}")
@@ -51,6 +54,7 @@ class DocumentHelper:
             chain = prompt_template | self.llm 
             response = chain.invoke({"system_prompt" : revised_technical_document_system_prompt, "human_query" : user_query})
             logging.info("Technical document revised with LLM.")
+            logging.info(f"In revised_technical_document_from_llm : {response.content}")
             return response.content
         except Exception as e:
             logging.error(f"Error revising technical document: {str(e)}")
