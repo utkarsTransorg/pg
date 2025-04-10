@@ -27,7 +27,7 @@ class SDLCGraphBuilder:
         self.technical_document_node = TechnicalDocumentNodes(gwen_llm)
         self.code_development_node = CodeDevelopmentNodes(anthropic_llm)
         self.test_case_node = TestCaseNodes(gemini_llm)
-        self.security_review_node = SecurityReviewNodes(gemini_llm)
+        self.security_review_node = SecurityReviewNodes(gemini_llm, anthropic_llm)
         
     def build(self):
         """
@@ -68,9 +68,9 @@ class SDLCGraphBuilder:
         
     
         ## Test Cases
-        self.sdlc_graph_builder.add_node("write_test_cases", self.test_case_node.write_test_cases)
+        self.sdlc_graph_builder.add_node("generate_test_cases", self.test_case_node.generate_test_cases)
         self.sdlc_graph_builder.add_node("test_cases_review", self.test_case_node.test_cases_review)
-        self.sdlc_graph_builder.add_node("fixed_testcases_after_review", self.test_case_node.fixed_testcases_after_review)
+        self.sdlc_graph_builder.add_node("revised_test_cases", self.test_case_node.revised_test_cases)
                 
         ## Adding edges
         ## User Story
@@ -127,23 +127,23 @@ class SDLCGraphBuilder:
             self.security_review_node.should_fix_code_after_security_review,
             {
                 "feedback" : "fix_code_after_security_review",
-                "approved" : "write_test_cases"
+                "approved" : "generate_test_cases"
             }
         )
         self.sdlc_graph_builder.add_edge("fix_code_after_security_review", "review_backend_code")
 
         ## test cases
-        self.sdlc_graph_builder.add_edge("write_test_cases", "test_cases_review")
+        self.sdlc_graph_builder.add_edge("generate_test_cases", "test_cases_review")
         self.sdlc_graph_builder.add_conditional_edges(
             "test_cases_review",
             self.test_case_node.should_fix_test_cases,
             {
-                "feedback" : "fixed_testcases_after_review",
+                "feedback" : "revised_test_cases",
                 "approved" : END # TODO : QA testing
             }
         )
 
-        self.sdlc_graph_builder.add_edge("fixed_testcases_after_review", "test_cases_review")
+        self.sdlc_graph_builder.add_edge("revised_test_cases", "test_cases_review")
                 
         memory = MemorySaver()
         sdlc_workflow = self.sdlc_graph_builder.compile(checkpointer=memory, interrupt_before=['review_user_stories', 'review_functional_documents', 'review_technical_documents', 'review_frontend_code', 'review_backend_code', 'security_review', 'test_cases_review'])

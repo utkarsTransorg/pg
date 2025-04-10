@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 load_dotenv()
 import os 
 
-os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
+# os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
+os.environ['PROJECT_ENVIRONMENT'] = os.getenv("PROJECT_ENVIRONMENT")
 os.environ['GROQ_API_KEY'] = os.getenv("GROQ_API_KEY")
 os.environ['LANGSMITH_API_KEY'] = os.getenv("LANGSMITH_API_KEY")
 os.environ['LANGSMITH_PROJECT'] = os.getenv("LANGSMITH_PROJECT")

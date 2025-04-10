@@ -42,7 +42,8 @@ if __name__ == "__main__":
     for event in sdlc_workflow.stream(initial_story_state, thread, stream_mode="values"):
         state = event
 
-    logging.info("** User Story Generated Successfully **")
+    print("** User Story Generated Successfully **")
+    print(state)
     
     user_feedback = "In above user stories, add a user story for buy insurance from the app and return all the user stories"
     logging.info(f"** User Feedback : {user_feedback} **")
@@ -134,8 +135,31 @@ if __name__ == "__main__":
     print("Next Node : ", current_state.next)
     
     print("updated state : ", state)
-    ## 10. Security Review - TODO 
+    
+    ## 10. Security Review - Approved 
+    sdlc_workflow.update_state(thread, { "security_reviews_messages" : HumanMessage(content='Approved'), "revised_count" : 0})
+    
+    for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
+        state = event
+    
+    current_state = sdlc_workflow.get_state(thread) 
+    print("Next Node : ", current_state.next)
+    
+    ## 11. Test Cases Review 
+    user_feedback = "Revised the test cases for buy insurance from the app"
+    sdlc_workflow.update_state(thread, { "test_cases_messages" : HumanMessage(content=f'{user_feedback}')})
+    
+    for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
+        state = event
         
-    print("Workflow Completed Successfully !!!")
+    ## 12. Test Cases Approval
+    sdlc_workflow.update_state(thread, { "test_cases_messages" : HumanMessage(content='Approved'), "revised_count" : 0})
+    
+    for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
+        state = event
+    
+    current_state = sdlc_workflow.get_state(thread) 
+    print("Next Node : ", current_state.next)
+    print("updated state : ", state)
 
-    # print(display(Image(workflow.get_graph().draw_mermaid_png())))
+    print("Workflow Completed Successfully !!!")

@@ -57,6 +57,7 @@ class TestCaseNodes:
                 ),
                 "test_cases_status": "approved"
             }
+        test_cases = self.test_case_helper.revised_test_cases_from_llm(state.test_cases, user_feedback)
         
         test_cases = None
         if os.environ.get("PROJECT_ENVIRONMENT") == "development":
