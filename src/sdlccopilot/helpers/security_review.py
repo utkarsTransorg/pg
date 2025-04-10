@@ -35,5 +35,5 @@ class SecurityReviewHelper:
             logging.info(f"In revised_backend_code_with_security_reviews_from_llm : {response.content}")
             return response.content
         except Exception as e:
-            logging.error(f"Error revising backend code: {str(e)}")
+            logging.error(f"Error revising backend code according to security reviews: {str(e)}")
             raise CustomException(e, sys)
