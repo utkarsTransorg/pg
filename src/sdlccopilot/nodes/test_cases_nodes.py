@@ -5,14 +5,20 @@ from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.logger import logging
 from src.sdlccopilot.helpers.test_case import TestCaseHelper
 from typing_extensions import Literal
+import os
+from src.sdlccopilot.utils.constants import CONSTANT_TEST_CASES, CONSTANT_REVISED_TEST_CASES
 
 class TestCaseNodes:
     def __init__(self, llm): 
         self.test_case_helper = TestCaseHelper(llm)
 
-    def write_test_cases(self, state : SDLCState) -> SDLCState: 
-        logging.info("In write_test_cases...")  
-        test_cases = self.test_case_helper.generate_test_cases_from_llm(state.project_requirements, state.user_stories)
+    def generate_test_cases(self, state : SDLCState) -> SDLCState: 
+        logging.info("In generate_test_cases...")  
+        test_cases = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            test_cases = self.test_case_helper.generate_test_cases_from_llm(state.functional_documents)
+        else:
+            test_cases = CONSTANT_TEST_CASES
         logging.info("Test cases generated successfully !!!")
         return {
             "test_cases": test_cases,
@@ -38,8 +44,8 @@ class TestCaseNodes:
     def should_fix_test_cases(self, state : SDLCState) -> Literal["feedback", "approved"]:
         return "approved" if state.test_cases_status == 'approved' else 'feedback'
 
-    def fixed_testcases_after_review(self, state : SDLCState) -> SDLCState:
-        logging.info("In fixed_testcases_after_review...")
+    def revised_test_cases(self, state : SDLCState) -> SDLCState:
+        logging.info("In revised_test_cases...")
         user_feedback = state.test_cases_messages[-2].content.lower().strip()
         revised_count = state.revised_count + 1
         logging.info(f"revised_count : {revised_count}")
@@ -52,9 +58,13 @@ class TestCaseNodes:
                 "test_cases_status": "approved"
             }
         
-        revised_test_cases = self.test_case_helper.revised_test_cases_from_llm(state.test_cases, user_feedback)
+        test_cases = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            test_cases = self.test_case_helper.revised_test_cases_from_llm(state.test_cases, user_feedback)
+        else:
+            test_cases = CONSTANT_REVISED_TEST_CASES
         return {
-            "test_cases": revised_test_cases,
+            "test_cases": test_cases,
             "test_cases_messages": AIMessage(
                 content=f"Please review revised test cases and provide additional feedback or type 'Approved' if you're satisfied."
             ),

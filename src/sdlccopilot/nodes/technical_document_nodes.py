@@ -3,6 +3,8 @@ from langchain_core.messages import AIMessage
 from src.sdlccopilot.logger import logging
 from src.sdlccopilot.helpers.document import DocumentHelper
 from src.sdlccopilot.states.sdlc import SDLCState
+from src.sdlccopilot.utils.constants import CONSTANT_TECHNICAL_DOCUMENT, CONSTANT_REVISED_TECHNICAL_DOCUMENT
+import os
 
 class TechnicalDocumentNodes:
     def __init__(self, llm):
@@ -13,7 +15,10 @@ class TechnicalDocumentNodes:
         doc_type = "technical"
         user_stories = state.user_stories
         functional_document = state.functional_documents
-        documents = self.document_helper.generate_technical_document_from_llm(functional_document, user_stories)
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            documents = self.document_helper.generate_technical_document_from_llm(functional_document, user_stories)
+        else:
+            documents = CONSTANT_TECHNICAL_DOCUMENT
         logging.info("Technical document generated successfully !!!")
         return {
             f"{doc_type}_documents": documents,
@@ -55,8 +60,10 @@ class TechnicalDocumentNodes:
                 ),
                 f"{doc_type}_status": "approved",
             }
-
-        documents = self.document_helper.revised_technical_document_from_llm(state.technical_documents, user_feedback)
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            documents = self.document_helper.revised_technical_document_from_llm(state.technical_documents, user_feedback)
+        else:
+            documents = CONSTANT_REVISED_TECHNICAL_DOCUMENT
         logging.info("Technical document revised successfully !!!")
         return {
             f"{doc_type}_documents": documents,

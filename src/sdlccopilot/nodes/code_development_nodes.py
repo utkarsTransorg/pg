@@ -3,6 +3,8 @@ from langchain_core.messages import AIMessage
 from src.sdlccopilot.helpers.code import CodeHelper
 from src.sdlccopilot.logger import logging
 from src.sdlccopilot.states.sdlc import SDLCState
+from src.sdlccopilot.utils.constants import CONSTANT_FRONTEND_CODE, CONSTANT_REVISED_FRONTEND_CODE, CONSTANT_BACKEND_CODE, CONSTANT_REVISED_BACKEND_CODE
+import os
 
 class CodeDevelopmentNodes:
     def __init__(self, llm): 
@@ -11,7 +13,11 @@ class CodeDevelopmentNodes:
     ## Frontend Code Development Nodes
     def generate_frontend_code(self, state : SDLCState) -> SDLCState:
         logging.info("In generate_frontend_code...")
-        frontend_code = self.code_helper.generate_frontend_code_from_llm(state.user_stories)
+        frontend_code = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            frontend_code = self.code_helper.generate_frontend_code_from_llm(state.user_stories)
+        else:
+            frontend_code = CONSTANT_FRONTEND_CODE
         code_type = "frontend"
         logging.info(f"Generated frontend code")
         return {
@@ -54,7 +60,11 @@ class CodeDevelopmentNodes:
                 f"{code_type}_status": "approved"
             }
         
-        revised_code = self.code_helper.revised_frontend_code_from_llm(state.frontend_code, user_feedback)
+        revised_code = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            revised_code = self.code_helper.revised_frontend_code_from_llm(state.frontend_code, user_feedback)
+        else:
+            revised_code = CONSTANT_REVISED_FRONTEND_CODE
         return {
             f"{code_type}_code": revised_code,
             f"{code_type}_messages": AIMessage(
@@ -66,7 +76,11 @@ class CodeDevelopmentNodes:
     
     def generate_backend_code(self, state : SDLCState) -> SDLCState:
         logging.info("In generate_backend_code...")
-        backend_code = self.code_helper.generate_backend_code_from_llm(state.user_stories)
+        backend_code = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            backend_code = self.code_helper.generate_backend_code_from_llm(state.user_stories)
+        else:
+            backend_code = CONSTANT_BACKEND_CODE
         code_type = "backend"
         logging.info(f"Generated backend code")
         return {
@@ -109,7 +123,11 @@ class CodeDevelopmentNodes:
                 f"{code_type}_status": "approved"
             }
         
-        revised_code = self.code_helper.revised_backend_code_from_llm(state.backend_code, user_feedback)
+        revised_code = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            revised_code = self.code_helper.revised_backend_code_from_llm(state.backend_code, user_feedback)
+        else:
+            revised_code = CONSTANT_REVISED_BACKEND_CODE
         return {
             f"{code_type}_code": revised_code,
             f"{code_type}_messages": AIMessage(

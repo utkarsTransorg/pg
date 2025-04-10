@@ -3,6 +3,8 @@ from langchain_core.messages import AIMessage
 from src.sdlccopilot.logger import logging
 from src.sdlccopilot.helpers.document import DocumentHelper
 from src.sdlccopilot.states.sdlc import SDLCState
+from src.sdlccopilot.utils.constants import CONSTANT_FUNCTIONAL_DOCUMENT, CONSTANT_REVISED_FUNCTIONAL_DOCUMENT
+import os
 
 class FunctionalDocumentNodes:
     def __init__(self, llm): 
@@ -12,7 +14,11 @@ class FunctionalDocumentNodes:
         logging.info("In create_functional_documents...")
         doc_type = "functional"
         user_stories = state.user_stories
-        documents = self.document_helper.generate_functional_document_from_llm(user_stories)
+        documents = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            documents = self.document_helper.generate_functional_document_from_llm(user_stories)
+        else:
+            documents = CONSTANT_FUNCTIONAL_DOCUMENT
         logging.info("Functional document generated successfully !!!")
         return {
             f"{doc_type}_documents": documents,
@@ -55,8 +61,11 @@ class FunctionalDocumentNodes:
                 ),
                 f"{doc_type}_status": "approved",
             }
-            
-        documents = self.document_helper.revised_functional_document_from_llm(state.functional_documents, user_feedback)
+        documents = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":  
+            documents = self.document_helper.revised_functional_document_from_llm(state.functional_documents, user_feedback)
+        else:
+            documents = CONSTANT_REVISED_FUNCTIONAL_DOCUMENT
         return {
             f"{doc_type}_documents": documents,
             f"{doc_type}_messages": AIMessage(

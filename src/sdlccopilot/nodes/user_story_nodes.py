@@ -4,6 +4,8 @@ from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.logger import logging
 from src.sdlccopilot.helpers.user_story import UserStoryHelper
 from typing_extensions import Literal
+from src.sdlccopilot.utils.constants import CONSTANT_USER_STORIES, CONSTANT_REVISED_USER_STORIES
+import os
 
 class UserStoryNodes:
     def __init__(self, llm): 
@@ -20,7 +22,11 @@ class UserStoryNodes:
         project_title = state.project_requirements.title
         project_description = state.project_requirements.description
         requirements = state.project_requirements.requirements
-        user_stories = self.user_story_helper.generate_user_stories_with_llm(project_title, project_description, requirements);
+        user_stories = None
+        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+            user_stories = self.user_story_helper.generate_user_stories_with_llm(project_title, project_description, requirements);
+        else:
+            user_stories = CONSTANT_USER_STORIES
         logging.info("User stories generated successfully !!!")
         return {
             "user_story_status" : 'pending_approval',
@@ -67,7 +73,11 @@ class UserStoryNodes:
                     ),
                     "user_story_status" : "approved"
                 }
-            user_stories = self.user_story_helper.revised_user_stories_with_llm(state.user_stories, user_review)
+            user_stories = None
+            if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+                user_stories = self.user_story_helper.revised_user_stories_with_llm(state.user_stories, user_review)
+            else:
+                user_stories = CONSTANT_REVISED_USER_STORIES
             logging.info("User stories revised successfully !!!")
             return {
                     "user_stories" : user_stories,
