@@ -51,4 +51,4 @@ class SDLCState(BaseModel):
 
     ## Code deployment
     deployment : str = Field(default='', description="The code deployment")
-    deployment_messages: Annotated[list, add_messages] = []
+    deployment_messages: Annotated[list, add_messages] = [] 
