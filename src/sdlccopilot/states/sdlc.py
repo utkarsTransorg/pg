@@ -2,6 +2,7 @@ from typing_extensions import Annotated, List, Literal
 from src.sdlccopilot.states.story import UserStory, ProjectRequirements
 from src.sdlccopilot.states.security import SecurityReview
 from src.sdlccopilot.states.testcase import TestCase
+from src.sdlccopilot.states.qa import QATesting, TestSummary
 from langgraph.graph import add_messages
 from pydantic import BaseModel, Field
 from langgraph.graph.message import add_messages
@@ -45,10 +46,12 @@ class SDLCState(BaseModel):
     test_cases_status : Literal["pending", "in_progress", "pending_approval", "feedback", "approved"] = "pending"
 
     ## qa testing
-    qa_testing : List[TestCase] = []
+    qa_testing : QATesting = Field(default=QATesting(test_results=[], summary=TestSummary(total_tests=0, passed=0, failed=0, pass_percentage=0.0)), description="The qa testing results")
     qa_testing_messages: Annotated[list, add_messages] = []
-    qa_testing_status : Literal["pending", "in_progress", "pending_approval", "feedback", "approved"] = "pending"
+    qa_testing_status : Literal["pending", "passed", "failed"] = "pending"
 
     ## Code deployment
     deployment : str = Field(default='', description="The code deployment")
     deployment_messages: Annotated[list, add_messages] = [] 
+
+

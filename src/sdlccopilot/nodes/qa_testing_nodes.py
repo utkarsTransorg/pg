@@ -2,87 +2,119 @@
 from langchain_core.messages import AIMessage
 from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.logger import logging
-from src.sdlccopilot.helpers.user_story import UserStoryHelper
+from src.sdlccopilot.helpers.qa_testing import QATestingHelper
 from typing_extensions import Literal
 from src.sdlccopilot.utils.constants import CONSTANT_USER_STORIES, CONSTANT_REVISED_USER_STORIES
 import os
+from src.sdlccopilot.logger import logging
 
-class UserStoryNodes:
+CONSTANT_TEST_CASES = [
+  {
+    "test_id": "TC001",
+    "description": "Enable MFA with valid userId and mfaType",
+    "steps": [
+      "Send POST request to /api/auth/mfa/enable",
+      "Include JSON body with userId: 'user123' and mfaType: 'mpin'",
+      "Expect response status 200 and message 'MFA enabled successfully'"
+    ],
+    "status": "draft"
+  },
+  {
+    "test_id": "TC002",
+    "description": "Apply for a loan with valid amount and term",
+    "steps": [
+      "Send POST request to /api/loan/apply",
+      "Include JSON body with amount: 50000 and term: 12",
+      "Expect response with loanId, status: 'PENDING', and interest value"
+    ],
+    "status": "draft"
+  },
+  {
+    "test_id": "TC003",
+    "description": "Link a bank account with valid details",
+    "steps": [
+      "Send POST request to /api/bank/link",
+      "Include JSON body with accountNumber: '1234567890' and bankName: 'BankX'",
+      "Expect response status 200 and message 'Bank account linked successfully'"
+    ],
+    "status": "draft"
+  },
+  {
+    "test_id": "TC004",
+    "description": "Pay a bill with valid billId and amount",
+    "steps": [
+      "Send POST request to /api/bill/pay",
+      "Include JSON body with billId: 'bill123' and amount: 1500",
+      "Expect response with transactionId and status: 'SUCCESS'"
+    ],
+    "status": "draft"
+  },
+  {
+    "test_id": "TC005",
+    "description": "Purchase an insurance policy with valid policyId and term",
+    "steps": [
+      "Send POST request to /api/insurance/purchase",
+      "Include JSON body with policyId: 'pol789' and term: 5",
+      "Expect response with policyNumber, status: 'ACTIVE', and coverage amount"
+    ],
+    "status": "draft"
+  }
+]
+
+class QATestingNodes:
     def __init__(self, llm): 
-        self.user_story_helper = UserStoryHelper(llm)
-
-    def process_project_requirements(self, state : SDLCState) -> SDLCState:
-        logging.info("In process_project_requirements...")
-        return {
-            "user_story_messages" : AIMessage(content="I've received your project requirements. I'll now generate user stories based on these requirements.")
-        }
+        self.qa_testing_helper = QATestingHelper(llm)
         
-    def generate_user_stories(self, state : SDLCState) -> SDLCState:
-        logging.info("In generate_user_stories...") 
-        project_title = state.project_requirements.title
-        project_description = state.project_requirements.description
-        requirements = state.project_requirements.requirements
-        user_stories = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
-            user_stories = self.user_story_helper.generate_user_stories_with_llm(project_title, project_description, requirements);
+    def perform_qa_testing(self, state : SDLCState) -> SDLCState:
+        logging.info("In perform_qa_testing...")
+        test_cases = CONSTANT_TEST_CASES
+        # TODO : get test cases from the state
+        # test_cases = state.test_cases
+        qa_testing = self.qa_testing_helper.perform_qa_testing_with_llm(test_cases, state.backend_code)
+        if qa_testing.summary.pass_percentage > 50:
+            logging.info("QA testing passed.")
+            return {
+                "qa_testing": qa_testing,
+                "qa_testing_status": "passed",
+                "qa_testing_messages": AIMessage(
+                    content="Great! QA testing have been finalized. You can now proceed with next steps."
+                )
+            }
         else:
-            user_stories = CONSTANT_USER_STORIES
-        logging.info("User stories generated successfully !!!")
+            logging.info("QA testing failed.")
+            return {
+                "qa_testing": qa_testing,
+                "qa_testing_status": "failed",
+                "qa_testing_messages": AIMessage(
+                    content="I'll revise the code accordingly."
+                )
+            }
+
+    def should_fix_after_qa_testing(self, state : SDLCState) -> Literal["passed", "failed"]:
+        return "passed" if state.qa_testing_status == 'passed' else 'failed'
+
+    def fixed_code_after_qa_testing(self, state : SDLCState) -> SDLCState:
+        logging.info("In fixed_code_after_qa_testing...")
+        code_type = "backend"
+        revised_count = state.revised_count + 1
+        logging.info(f"revised_count : {revised_count}")
+
+        if revised_count == 3:
+            return {
+                f"{code_type}_messages": AIMessage(
+                    content="Code have been revision maxed out. Please review the code and continue with the next step."
+                ),
+                f"{code_type}_status": "approved"
+            }
+        
+        failed_test_cases = [test_case for test_case in state.qa_testing if test_case['status'] == "failed"]
+        revised_code = self.qa_testing_helper.revised_backend_code_with_qa_testing_from_llm(state.backend_code, failed_test_cases)
+        logging.info("Fixed code after QA testing completed !!!")
         return {
-            "user_story_status" : 'pending_approval',
-            "user_stories" : user_stories,
-            "user_story_messages" : AIMessage(
-                content = f"Based on your requirements, I've generated {len(user_stories)} user stories. Please review these user stories and provide feedback or type 'Approved' if you're satisfied."
+            f"{code_type}_code": revised_code,
+            f"{code_type}_messages": AIMessage(
+                content=f"Please review revised {code_type} code and provide additional feedback or type 'Approved' if you're satisfied."
             ),
-            "revised_count" : 0
+            f"{code_type}_status": "pending_approval",
+            "revised_count": revised_count
         }
-
-    def review_user_stories(self, state : SDLCState) -> SDLCState:
-        logging.info("In review_user_stories...")
-        user_review = state.user_story_messages[-1].content
-        user_review = user_review.lower().strip()
-        logging.info(f"user_feedback : {user_review}")  
-        if user_review == "approved":
-            logging.info("User stories approved !!!")
-            return {
-                "user_story_messages" : AIMessage(content="Great! Your user stories have been finalized. You can now proceed with your design process."),
-                "user_story_status" : "approved",
-            }
-        else:
-            logging.info("User stories feedback received !!!")
-            return {
-                "user_story_messages" :  AIMessage(content="I've received your feedback. I'll revise the user stories accordingly."),
-                "user_story_status" : "feedback"
-            }
-
-    def should_revise_user_stories(self, state : SDLCState) -> Literal["feedback", "approved"]:
-        return "approved" if state.user_story_status == "approved" else "feedback"   
-
-    def revised_user_stories(self, state : SDLCState) -> SDLCState:
-        logging.info("In revised_user_stories...")
-        user_review = state.user_story_messages[-2].content
-        user_review = user_review.lower().strip()
-        if state.user_story_status == 'feedback':
-            revised_count = state.revised_count + 1
-            logging.info(f"revised_count : {revised_count}")
-            if revised_count == 3:
-                logging.info("User stories revision maxed out !!!")
-                return {
-                    "user_story_messages" :  AIMessage(
-                        content = f"User stories have been revision maxed out. Please review the user stories and continue with the next step."
-                    ),
-                    "user_story_status" : "approved"
-                }
-            user_stories = None
-            if os.environ.get("PROJECT_ENVIRONMENT") == "development":
-                user_stories = self.user_story_helper.revised_user_stories_with_llm(state.user_stories, user_review)
-            else:
-                user_stories = CONSTANT_REVISED_USER_STORIES
-            logging.info("User stories revised successfully !!!")
-            return {
-                    "user_stories" : user_stories,
-                    "user_story_messages" : AIMessage(
-                        content = "I've revised the user stories based on your feedback.\n\nPlease review these updated user stories and provide additional feedback or type 'Approved' if you're satisfied."),
-                    "user_story_status" : "pending_approval",
-                    "revised_count" : revised_count
-                }
