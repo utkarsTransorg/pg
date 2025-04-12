@@ -20,10 +20,10 @@ jobs:
         run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "notebooks/sdlc_workflow.png"' HEAD
 
       - name: Ignore large files2
-        run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "workflow.jpeg"' HEAD
+        run: git filter-branch2 --index-filter 'git rm -rf --cached --ignore-unmatch "workflow.jpeg"' HEAD
 
       - name: Ignore large files3
-        run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "notebooks/sdlc_workflow.png"' HEAD
+        run: git filter-branch3 --index-filter 'git rm -rf --cached --ignore-unmatch "notebooks/sdlc_workflow.png"' HEAD
 
       - name: Push to hub
         env:
