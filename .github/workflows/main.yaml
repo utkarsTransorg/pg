@@ -21,6 +21,19 @@ jobs:
         run: git lfs track *.jpg
       - name: Checkout LFS objects
         run: git lfs checkout
+
+      - name: reset commit
+        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch sdlc_complete_workflow.png" --prune-empty --tag-name-filter cat -- --all
+
+       - name: reset commit-2
+        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch notebooks/sdlc_workflow.png" --prune-empty --tag-name-filter cat -- --all
+
+      - name: reset commit-3
+        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch workflow.jpeg" --prune-empty --tag-name-filter cat -- --all
+
+      - name: reset commit-4
+        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch notebooks/sdlc_workflow.png" --prune-empty --tag-name-filter cat -- --all
+
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
