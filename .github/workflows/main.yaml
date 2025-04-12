@@ -16,15 +16,15 @@ jobs:
           fetch-depth: 0
           lfs: false
 
-      - name: Ignore large files
-        run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "notebooks/sdlc_workflow.png"' HEAD
-
-      - name: Ignore large files2
-        run: git filter-branch2 --index-filter 'git rm -rf --cached --ignore-unmatch "workflow.jpeg"' HEAD
-
-      - name: Ignore large files3
-        run: git filter-branch3 --index-filter 'git rm -rf --cached --ignore-unmatch "notebooks/sdlc_workflow.png"' HEAD
-
+      - name: Ignore all large files
+        run: |
+          git filter-branch --index-filter '
+          git rm -rf --cached --ignore-unmatch \
+            "notebooks/sdlc_workflow.png" \
+            "workflow.jpeg" \
+            "sdlc_complete_workflow.png"
+          ' HEAD
+          
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
