@@ -14,11 +14,13 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          lfs: false
-
-      - name: Ignore large files
-        run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "Rag_Documents/layout-parser-paper.pdf"' HEAD
-
+          lfs: True
+      - name: LFS Install
+        run: git lfs install
+      - name: LFS Track
+        run: git lfs track *.jpg
+      - name: Checkout LFS objects
+        run: git lfs checkout
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
