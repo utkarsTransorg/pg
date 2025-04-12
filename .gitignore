@@ -4,4 +4,3 @@ __pycache__/
 logs/
 sdvenv/
 .DS_Store
-notebooks/
