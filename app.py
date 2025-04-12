@@ -1,18 +1,24 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 from uuid import uuid4
 from src.sdlccopilot.requests import ProjectRequirementsRequest, OwnerFeedbackRequest
-from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse, SecurityReviewResponse, SecurityReview, TestCasesResponse, TestCase
-from src.sdlccopilot.llms.groq import GroqLLM
+from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse, SecurityReviewResponse, SecurityReview, TestCasesResponse, QATestingResponse
 from src.sdlccopilot.graph.sdlc_graph import SDLCGraphBuilder
+from src.sdlccopilot.logger import logging
+from redis import Redis
+import os 
+import httpx
+import json
+from typing import Optional, Dict, Any
+from contextlib import asynccontextmanager
+from fastapi.responses import JSONResponse
+import time
 
-## Environment Variables
 from dotenv import load_dotenv
 load_dotenv()
-import os 
-
-# os.environ['OPENAI_API_KEY'] = os.getenv("OPENAI_API_KEY")
+## Environment Variable
 os.environ['PROJECT_ENVIRONMENT'] = os.getenv("PROJECT_ENVIRONMENT")
 os.environ['GROQ_API_KEY'] = os.getenv("GROQ_API_KEY")
 os.environ['LANGSMITH_API_KEY'] = os.getenv("LANGSMITH_API_KEY")
@@ -23,28 +29,94 @@ REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = os.getenv("REDIS_PORT")
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
-# Initialize FastAPI
-app = FastAPI(title="User Stories Generator API")
+# Application state management
+class ApplicationState:
+    def __init__(self):
+        self.redis: Optional[Redis] = None
+        self.http_client: Optional[httpx.AsyncClient] = None
+        self.sdlc_workflow = None
 
-## Initialize the SDLC workflow
-sdlc_graph_builder = SDLCGraphBuilder()
-sdlc_workflow = sdlc_graph_builder.build()
+    async def initialize(self):
+        self.redis = Redis(
+            host= REDIS_HOST,
+            port=REDIS_PORT,
+            decode_responses=True,
+            username="default",
+            password=REDIS_PASSWORD
+        )
+        self.http_client = httpx.AsyncClient()
+        sdlc_graph_builder = SDLCGraphBuilder()
+        self.sdlc_workflow = sdlc_graph_builder.build()
 
-active_sessions = {}
+    async def shutdown(self):
+        if self.http_client:
+            await self.http_client.aclose()
+        if self.redis:
+            await self.redis.close()
 
-# Status response model
-class ServerStatusResponse(BaseModel):
-    status: str
-    message: str
+app = FastAPI(
+    title="SDLC Copilot API",
+    description="API for managing the Software Development Life Cycle process",
+    version="1.0.0",
+)
+
+@app.on_event("startup")
+async def startup_event():
+    app.state.app_state = ApplicationState()
+    await app.state.app_state.initialize()
     
+    
+@app.on_event("shutdown")
+async def shutdown_event():
+    await app.state.app_state.shutdown()
+    
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-def serialize_message(msg):
+# Dependency injection
+async def get_redis() -> Redis:
+    return app.state.app_state.redis
+
+async def get_http_client() -> httpx.AsyncClient:
+    return app.state.app_state.http_client
+
+async def get_sdlc_workflow():
+    return app.state.app_state.sdlc_workflow
+
+# Helper functions
+def serialize_message(msg) -> Dict[str, Any]:
     return {
         "content": msg.content,
         "type": msg.type,
         "id": msg.id
     }
 
+
+# Status response model
+class ServerStatusResponse(BaseModel):
+    status: str
+    message: str
+
+# Error handling
+class SDLCException(HTTPException):
+    def __init__(self, status_code: int, detail: str):
+        super().__init__(status_code=status_code, detail=detail)
+        logging.error(f"SDLC Error: {detail}")
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": time.time(),
+        "version": "1.0.0"
+    }
 
 @app.get("/status", response_model=ServerStatusResponse)
 async def get_server_status():
@@ -54,26 +126,28 @@ async def get_server_status():
     )
 
 @app.post("/stories/generate", response_model=UserStoriesResponse)
-async def generate_user_stories(request: ProjectRequirementsRequest):
+async def generate_user_stories(
+    request: ProjectRequirementsRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Generating user stories for project: {request.title}")
     session_id = str(uuid4())
-    title = request.title
-    description = request.description
-    requirements = request.requirements
-
-    try:    
+    
+    try:
         project_requirements = {
-            "title" : title,
-            "description" : description,
-            "requirements" : requirements
+            "title": request.title,
+            "description": request.description,
+            "requirements": request.requirements
         }
 
         initial_story_state = {
-            "project_requirements" : project_requirements,
+            "project_requirements": project_requirements,
             "user_stories": [],
             "user_stories_messages": HumanMessage(content=f"{project_requirements}"),
             "status": "in_progress",
             "owner_feedback": "",
-            " b " : 0
+            "review_count": 0
         }
 
         state = None
@@ -84,16 +158,16 @@ async def generate_user_stories(request: ProjectRequirementsRequest):
         user_story_status = "completed" if state["user_story_status"] == 'approved' else state["user_story_status"]
         user_story = state["user_stories"]
         user_story_messages = [serialize_message(msg) for msg in state["user_story_messages"]]
-        
-        active_sessions[session_id] = {
+
+        session_data = {
             "project_requirements": project_requirements,
             "user_stories": user_story,
             "user_story_status": user_story_status,
             "user_story_messages": user_story_messages
         }
-
-        print("*** User stories generated ****")
-        print("==================================")
+                
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"User stories generated successfully for session: {session_id}")
 
         return UserStoriesResponse(
             session_id=session_id,
@@ -104,284 +178,333 @@ async def generate_user_stories(request: ProjectRequirementsRequest):
         )    
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error generating user stories: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
     
+
+def session_validator(session_id: str, redis: Redis, current_node: str):
+    session = redis.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session_data = json.loads(session)
+    if current_node == "user_story_review":
+        if session_data["user_story_status"] == "completed":
+            raise HTTPException(status_code=400, detail="User stories are already completed")
+        
+        if session_data["user_story_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="User stories are not pending approval")
+    
+    if current_node == "functional_generate":
+        if session_data["user_story_status"] != "completed":
+            raise HTTPException(status_code=400, detail="User stories are not completed")
+        
+    if current_node == "functional_review":
+        if session_data["functional_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Functional documents are already completed")
+        
+        if session_data["functional_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Functional documents are not pending approval")
+        
+    if current_node == "technical_generate":
+        if session_data["functional_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Functional documents are not completed")
+        
+    if current_node == "technical_review":
+        if session_data["technical_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Technical documents are already completed")
+        
+        if session_data["technical_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Technical documents are not pending approval")
+        
+    if current_node == "frontend_generate":
+        if session_data["technical_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Technical documents are not completed")
+        
+    if current_node == "frontend_review":
+        if session_data["frontend_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Frontend code is already completed")
+        
+        if session_data["frontend_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Frontend code is not pending approval")
+        
+    if current_node == "backend_generate":
+        if session_data["frontend_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Frontend code is not completed")   
+        
+    if current_node == "backend_review":
+        if session_data["backend_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Backend code is already completed")
+        
+        if session_data["backend_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Backend code is not pending approval")
+        
+    if current_node == "security_review":
+        if session_data["backend_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Backend code is not completed")
+        
+    if current_node == "test_cases_generate":
+        if session_data["backend_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Backend code is not completed")
+        
+    if current_node == "test_cases_review":
+        if session_data["test_cases_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Test cases are already completed")
+        
+    if current_node == "qa_testing":
+        if session_data["test_cases_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Test cases are not completed")
+        
+    if current_node == "qa_testing_review":
+        if session_data["qa_testing_status"] == "completed":
+            raise HTTPException(status_code=400, detail="QA testing is already completed")
+        
+    return session_data
+
 
 @app.post("/stories/review/{session_id}", response_model=UserStoriesResponse)
-async def review_user_stories(session_id: str, request: OwnerFeedbackRequest):
+async def review_user_stories(
+    session_id: str,
+    request: OwnerFeedbackRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Reviewing user stories for session: {session_id}")
     feedback = request.feedback
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
+    session_data = session_validator(session_id, redis, "user_story_review")
     
-    if active_sessions[session_id]["user_story_status"] == "completed":
-        raise HTTPException(status_code=400, detail="User stories are already completed")
-
-    if active_sessions[session_id]["user_story_status"] != "pending_approval":
-        raise HTTPException(status_code=400, detail="User stories are not pending approval")    
-
-    try:   
+    try:
         thread = {"configurable": {"thread_id": session_id}}
-        user_state = sdlc_workflow.get_state(thread) 
-        print("@@next node to call : ", user_state.next)
+        sdlc_state = sdlc_workflow.get_state(thread)
+        logging.debug(f"Next node to call: {sdlc_state.next}")
 
-        sdlc_workflow.update_state(thread, { "user_story_messages" : HumanMessage(content=feedback)})
+        sdlc_workflow.update_state(thread, {"user_story_messages": HumanMessage(content=feedback)})
 
-        state = None
+        sdlc_state = None
         for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
-            state = event
+            sdlc_state = event
             
-        print("** updated_state : ", state)
-        user_story_messages = state["user_story_messages"]
-        user_story_status = "completed" if state["user_story_status"] == 'approved' else state["user_story_status"]
-        user_story = state["user_stories"]
+        logging.debug(f"Updated state: {sdlc_state}")
+        user_story_status = "completed" if sdlc_state["user_story_status"] == 'approved' else sdlc_state["user_story_status"]
+        user_story = sdlc_state["user_stories"]
+        user_story_messages = [serialize_message(msg) for msg in sdlc_state["user_story_messages"]]
         
-        print("** user_story_status : ", user_story_status)
+        logging.debug(f"User story status: {user_story_status}")
         
         if user_story_status == "completed":
-            functional_documents = state["functional_documents"]
-            functional_status = state["functional_status"]
-            functional_messages = state["functional_messages"]
+            functional_documents = sdlc_state["functional_documents"]
+            functional_status = sdlc_state["functional_status"]
+            functional_messages = [serialize_message(msg) for msg in sdlc_state["functional_messages"]]
 
-        active_sessions[session_id] = {
-            **active_sessions,
+        session_data = {
+            **session_data,
             "user_stories": user_story,
             "user_story_status": user_story_status,
             "user_story_messages": user_story_messages,
-            "functional_documents" : functional_documents if user_story_status == "completed" else None,
+            "functional_documents": functional_documents if user_story_status == "completed" else None,
             "functional_status": functional_status if user_story_status == "completed" else None,
             "functional_messages": functional_messages if user_story_status == "completed" else None
         }
-                
-        print("*** User stories reviewed ****")
-        print("==================================")
+        
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"User stories reviewed successfully for session: {session_id}")
 
         return UserStoriesResponse(
             session_id=session_id,
-            project_requirements=active_sessions[session_id]["project_requirements"],
+            project_requirements=session_data["project_requirements"],
             status=user_story_status,
             user_stories=user_story,
             message=user_story_messages
         )    
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error reviewing user stories: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
 
 @app.post("/documents/functional/generate/{session_id}", response_model=DesignDocumentsResponse)
-async def create_functional_design_documents(session_id: str):
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    if active_sessions[session_id]["functional_status"] != "pending_approval":
-        raise HTTPException(status_code=400, detail="Functional design documents are not pending approval")
+async def create_functional_design_documents(
+    session_id: str,
+    redis: Redis = Depends(get_redis)
+):
+    logging.info(f"Generating functional design documents for session: {session_id}")
+    session_data = session_validator(session_id, redis, "functional_generate")
+    try:
+        functional_status = session_data["functional_status"]
+        functional_documents = session_data["functional_documents"]
+        functional_messages = session_data["functional_messages"]
 
-    try:    
-        functional_status = active_sessions[session_id]["functional_status"]
-        functional_documents = active_sessions[session_id]["functional_documents"]
-        functional_messages = active_sessions[session_id]["functional_messages"]
-
-        print("*** Functional documents generated ****")
-        print("==================================")
+        logging.info(f"Functional documents generated successfully for session: {session_id}")
 
         return DesignDocumentsResponse.model_construct(
             session_id=session_id,
             document_type="functional",
             status=functional_status,
-            document= functional_documents,
+            document=functional_documents,
             messages=functional_messages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error generating functional documents: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
 
 @app.post("/documents/functional/review/{session_id}", response_model=DesignDocumentsResponse)
-async def review_functional_design_documents(session_id: str, request: OwnerFeedbackRequest):
+async def review_functional_design_documents(
+    session_id: str,
+    request: OwnerFeedbackRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Reviewing functional design documents for session: {session_id}")
     feedback = request.feedback
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    if active_sessions[session_id]["user_story_status"] != "completed":
-        raise HTTPException(status_code=400, detail="User stories are not completed")
-    
-    if active_sessions[session_id]["functional_status"] == "completed":
-        raise HTTPException(status_code=400, detail="Functional design documents are already completed")
-
-    if active_sessions[session_id]["functional_status"] != "pending_approval":
-        raise HTTPException(status_code=400, detail="Functional design documents are not pending approval")
-
-    try:   
+    session_data = session_validator(session_id, redis, "functional_review")
+    try:
         thread = {"configurable": {"thread_id": session_id}}
-        document_state = sdlc_workflow.get_state(thread) 
-        print("@@next node to call : ", document_state.next)
-        print("@@document_state : ", document_state)
-        sdlc_workflow.update_state(thread, { "functional_messages" : HumanMessage(content=feedback)})
-        document_state = None
+        sdlc_state = sdlc_workflow.get_state(thread)
+        logging.debug(f"Next node to call: {sdlc_state.next}")
+        
+        sdlc_workflow.update_state(thread, {"functional_messages": HumanMessage(content=feedback)})
+        sdlc_state = None
         for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
-            document_state = event
-        
-        print("********* functional document_state : ", document_state)
-        functional_status = "completed" if document_state["functional_status"] == 'approved' else document_state["functional_status"]
-        
-        if functional_status == "completed":
-            technical_documents = document_state["technical_documents"]
-            technical_status = document_state["technical_status"]
-            technical_messages = document_state["technical_messages"]
+            sdlc_state = event
             
-        active_sessions[session_id] = {
-            **active_sessions[session_id],
-            "functional_documents": document_state["functional_documents"],
-            "functional_messages": document_state["functional_messages"],
+        logging.debug(f"Functional document state: {sdlc_state}")
+        
+        functional_status = "completed" if sdlc_state["functional_status"] == 'approved' else sdlc_state["functional_status"]
+        functional_messages = [serialize_message(msg) for msg in sdlc_state["functional_messages"]]
+
+        if functional_status == "completed":
+            technical_documents = sdlc_state["technical_documents"]
+            technical_status = sdlc_state["technical_status"]
+            technical_messages = [serialize_message(msg) for msg in sdlc_state["technical_messages"]]
+            
+        session_data = {
+            **session_data,
+            "functional_documents": sdlc_state["functional_documents"],
+            "functional_messages": functional_messages,
             "functional_status": functional_status,
             "technical_documents": technical_documents if functional_status == "completed" else None,
             "technical_messages": technical_messages if functional_status == "completed" else None,
             "technical_status": technical_status if functional_status == "completed" else None,
         }
-        print("**** Functional review completed ****")
-        print("==================================")
         
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"Functional documents reviewed successfully for session: {session_id}")
+
         return DesignDocumentsResponse.model_construct(
             session_id=session_id,
             document_type="functional",
             status=functional_status,
-            document = document_state["functional_documents"],
-            messages=document_state["functional_messages"]
+            document=sdlc_state["functional_documents"],
+            messages=functional_messages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error reviewing functional documents: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
     
-
 
 @app.post("/documents/technical/generate/{session_id}", response_model=DesignDocumentsResponse)
-async def create_technical_design_documents(session_id: str):
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
+async def create_technical_design_documents(
+    session_id: str,
+    redis: Redis = Depends(get_redis)
+):
+    logging.info(f"Generating technical design documents for session: {session_id}")
+    session_data = session_validator(session_id, redis, "technical_generate")
     
-    if active_sessions[session_id]["user_story_status"] != "completed":
-        raise HTTPException(status_code=400, detail="User stories are not completed")
-    
-    if active_sessions[session_id]["functional_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Functional design documents are not completed")
-    
-    if active_sessions[session_id]["technical_status"] == "completed":
-        raise HTTPException(status_code=400, detail="Technical design documents are already completed")
-    
-    if active_sessions[session_id]["technical_status"] != "pending_approval":
-        raise HTTPException(status_code=400, detail="Technical design documents are not pending approval")
+    try:
+        technical_status = session_data["technical_status"]
+        technical_documents = session_data["technical_documents"]
+        technical_messages = session_data["technical_messages"]
         
-    try:    
-        technical_status = active_sessions[session_id]["technical_status"]
-        technical_documents = active_sessions[session_id]["technical_documents"]
-        technical_messages = active_sessions[session_id]["technical_messages"]
-        
-        print("*** Technical documents generated ****")
-        print("==================================")
+        logging.info(f"Technical documents generated successfully for session: {session_id}")
         
         return DesignDocumentsResponse.model_construct(
             session_id=session_id,
             document_type="technical",
             status=technical_status,
-            document= technical_documents,
+            document=technical_documents,
             messages=technical_messages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        logging.error(f"Error generating technical documents: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
 @app.post("/documents/technical/review/{session_id}", response_model=DesignDocumentsResponse)
-async def review_technical_design_documents(session_id: str, request: OwnerFeedbackRequest):
+async def review_technical_design_documents(
+    session_id: str,
+    request: OwnerFeedbackRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Reviewing technical design documents for session: {session_id}")
     feedback = request.feedback
-
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if active_sessions[session_id]["user_story_status"] != "completed":
-        raise HTTPException(status_code=400, detail="User stories are not completed")
+    session_data = session_validator(session_id, redis, "technical_review")
     
-    if active_sessions[session_id]["functional_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Functional design documents are not completed")
-    
-    if active_sessions[session_id]["technical_status"] == "completed":
-        raise HTTPException(status_code=400, detail="Technical design documents are already completed")
-    
-    if active_sessions[session_id]["technical_status"] != "pending_approval":
-        raise HTTPException(status_code=400, detail="Technical design documents are not pending approval")
-
-    try:   
+    try:
+        
         thread = {"configurable": {"thread_id": session_id}}
-        document_state = sdlc_workflow.get_state(thread) 
-        print("@@next node to call : ", document_state.next)
-        print("@@document_state : ", document_state)
+        sdlc_state = sdlc_workflow.get_state(thread)
+        logging.debug(f"Next node to call: {sdlc_state.next}")
 
-        sdlc_workflow.update_state(thread, { "technical_messages" : HumanMessage(content=feedback)})
+        sdlc_workflow.update_state(thread, {"technical_messages": HumanMessage(content=feedback)})
 
-        document_state = None
+        sdlc_state = None
         for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
-            document_state = event
+            sdlc_state = event
             
-        technical_status = "completed" if document_state["technical_status"] == 'approved' else document_state["technical_status"]
+        logging.debug(f"Technical document state: {sdlc_state}")
+                
+        technical_status = "completed" if sdlc_state["technical_status"] == 'approved' else sdlc_state["technical_status"]
+        technical_messages = [serialize_message(msg) for msg in sdlc_state["technical_messages"]]
         
         if technical_status == "completed":
-            frontend_documents = document_state["frontend_code"]
-            frontend_status = document_state["frontend_status"]
-            frontend_messages = document_state["frontend_messages"]
-        
-        print("********* technical document_state : ", document_state)
-        active_sessions[session_id] = {
-            **active_sessions[session_id],
-            "technical_documents": document_state["technical_documents"],
-            "technical_messages": document_state["technical_messages"],
+            frontend_documents = sdlc_state["frontend_code"]
+            frontend_status = sdlc_state["frontend_status"]
+            frontend_messages = [serialize_message(msg) for msg in sdlc_state["frontend_messages"]]
+
+        session_data = {
+            **session_data,
+            "technical_documents": sdlc_state["technical_documents"],
+            "technical_messages": technical_messages,
             "technical_status": technical_status,
             "frontend_code": frontend_documents if technical_status == "completed" else None,
             "frontend_messages": frontend_messages if technical_status == "completed" else None,
             "frontend_status": frontend_status if technical_status == "completed" else None,
         }
-        print("**** Technical review completed ****")
-        print("==================================")
+        
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"Technical documents reviewed successfully for session: {session_id}")
 
         return DesignDocumentsResponse.model_construct(
             session_id=session_id,
             document_type="technical",
             status=technical_status,
-            document= document_state["technical_documents"],
-            messages=document_state["technical_messages"]
+            document=sdlc_state["technical_documents"],
+            messages=technical_messages
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
+        logging.error(f"Error reviewing technical documents: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
-## Code Development
+## Frontend code
 @app.post("/code/frontend/generate/{session_id}", response_model=CodeResponse)
-async def generate_frontend_code(session_id: str):
-    print("********* generate_frontend_code : ", session_id)
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
+async def generate_frontend_code(
+    session_id: str,
+    redis: Redis = Depends(get_redis)
+):
+    logging.info(f"Generating frontend code for session: {session_id}")
+    session_data = session_validator(session_id, redis, "frontend_generate")
     
-    if active_sessions[session_id]["user_story_status"] != "completed":
-        raise HTTPException(status_code=400, detail="User stories are not completed")
-    
-    if active_sessions[session_id]["functional_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Functional design documents are not completed")
-    
-    if active_sessions[session_id]["technical_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Technical design documents are not completed")
-    
-    if active_sessions[session_id]["frontend_status"] == "completed":
-        raise HTTPException(status_code=400, detail="Frontend code is already completed")
-    
-    if active_sessions[session_id]["frontend_status"] != "pending_approval":
-        raise HTTPException(status_code=400, detail="Frontend code is not pending approval")
-
     try:
-        frontend_status = active_sessions[session_id]["frontend_status"]
-        frontend_code = active_sessions[session_id]["frontend_code"]
-        frontend_messages = active_sessions[session_id]["frontend_messages"]
+        frontend_status = session_data["frontend_status"]
+        frontend_code = session_data["frontend_code"]
+        frontend_messages = session_data["frontend_messages"]
         
-        print("*** Frontend code generated ****")
-        print("==================================")
+        logging.info(f"Frontend code generated successfully for session: {session_id}")
 
         return CodeResponse.model_construct(
             session_id=session_id,
@@ -392,89 +515,81 @@ async def generate_frontend_code(session_id: str):
         )
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error generating frontend code: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
     
 @app.post("/code/frontend/review/{session_id}", response_model=CodeResponse)
-async def review_frontend_code(session_id: str, request: OwnerFeedbackRequest):
-    print("********* review_frontend_code : ", session_id)
+async def review_frontend_code(
+    session_id: str,
+    request: OwnerFeedbackRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Reviewing frontend code for session: {session_id}")
     feedback = request.feedback
-
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
+    session_data = session_validator(session_id, redis, "frontend_review")
     
-    if active_sessions[session_id]["user_story_status"] != "completed":
-        raise HTTPException(status_code=400, detail="User stories are not completed")
-    
-    if active_sessions[session_id]["functional_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Functional design documents are not completed")
-    
-    if active_sessions[session_id]["technical_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Technical design documents are not completed")
-    
-    if active_sessions[session_id]["frontend_status"] == "completed":
-        raise HTTPException(status_code=400, detail="Frontend code is already completed")   
-    
-    if active_sessions[session_id]["frontend_status"] != "pending_approval":
-        raise HTTPException(status_code=400, detail="Frontend code is not pending approval")
-
-    try:   
+    try:
         thread = {"configurable": {"thread_id": session_id}}
-        document_state = sdlc_workflow.get_state(thread) 
-        print("@@next node to call : ", document_state.next)
-        print("@@document_state : ", document_state)
+        sdlc_state = sdlc_workflow.get_state(thread)
+        logging.debug(f"Next node to call: {sdlc_state.next}")
 
-        sdlc_workflow.update_state(thread, { "frontend_messages" : HumanMessage(content=feedback)})
+        sdlc_workflow.update_state(thread, {"frontend_messages": HumanMessage(content=feedback)})
 
-        document_state = None
+        sdlc_state = None
         for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
-            document_state = event
+            sdlc_state = event
             
-        frontend_status = "completed" if document_state["frontend_status"] == 'approved' else document_state["frontend_status"]
+        logging.debug(f"Frontend code state: {sdlc_state}")
+        
+        frontend_status = "completed" if sdlc_state["frontend_status"] == 'approved' else sdlc_state["frontend_status"]
+        frontend_messages = [serialize_message(msg) for msg in sdlc_state["frontend_messages"]]
         
         if frontend_status == "completed":
-            backend_code = document_state["backend_code"]
-            backend_status = document_state["backend_status"]
-            backend_messages = document_state["backend_messages"]
+            backend_code = sdlc_state["backend_code"]
+            backend_status = sdlc_state["backend_status"]
+            backend_messages = [serialize_message(msg) for msg in sdlc_state["backend_messages"]]
         
-        active_sessions[session_id] = {
-            **active_sessions[session_id],    
-            "frontend_code": document_state["frontend_code"],
-            "frontend_messages": document_state["frontend_messages"],
+        session_data = {
+            **session_data,    
+            "frontend_code": sdlc_state["frontend_code"],
+            "frontend_messages": frontend_messages,
             "frontend_status": frontend_status,
             "backend_code": backend_code if frontend_status == "completed" else None,
             "backend_messages": backend_messages if frontend_status == "completed" else None,
             "backend_status": backend_status if frontend_status == "completed" else None,
-        } 
+        }
         
-        print("**** Frontend review completed ****")
-        print("==================================")
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"Frontend code reviewed successfully for session: {session_id}")
         
         return CodeResponse.model_construct(
             session_id=session_id,
             code_type="frontend",
             status=frontend_status,
-            code=document_state["frontend_code"],
-            messages=document_state["frontend_messages"],
+            code=sdlc_state["frontend_code"],
+            messages=frontend_messages,
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error reviewing frontend code: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
-
+# Backend code endpoints
 @app.post("/code/backend/generate/{session_id}", response_model=CodeResponse)
-async def generate_backend_code(session_id: str):
-    print("********* generate_backend_code : ", session_id)
+async def generate_backend_code(
+    session_id: str,
+    redis: Redis = Depends(get_redis)
+):
+    logging.info(f"Generating backend code for session: {session_id}")
+    session_data = session_validator(session_id, redis, "backend_generate")
     
-    validation(session_id, "backend_generate")
-
     try:
-        backend_status = active_sessions[session_id]["backend_status"]
-        backend_code = active_sessions[session_id]["backend_code"]
-        backend_messages = active_sessions[session_id]["backend_messages"]
-        
-        print("*** Backend code generated ****")
-        print("==================================")
-        
+        backend_status = session_data["backend_status"]
+        backend_status = session_data["backend_status"]
+        backend_code = session_data["backend_code"]
+        backend_messages = session_data["backend_messages"]
+        logging.info(f"Backend code generated successfully for session: {session_id}")
         return CodeResponse.model_construct(
             session_id=session_id,
             code_type="backend",
@@ -484,251 +599,247 @@ async def generate_backend_code(session_id: str):
         )
     
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def validation(session_id: str, current_flow: str):
-    if session_id not in active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    
-    if active_sessions[session_id]["user_story_status"] != "completed":
-        raise HTTPException(status_code=400, detail="User stories are not completed")
-
-    if active_sessions[session_id]["functional_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Functional design documents are not completed")
-    
-    if active_sessions[session_id]["technical_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Technical design documents are not completed")
-    
-    if active_sessions[session_id]["frontend_status"] != "completed":
-        raise HTTPException(status_code=400, detail="Frontend code is not completed")
-
-    if current_flow == "backend_generate":
-        if active_sessions[session_id]["backend_status"] == "completed":
-            raise HTTPException(status_code=400, detail="Backend code is already completed")
-        
-        if active_sessions[session_id]["backend_status"] != "pending_approval":
-            raise HTTPException(status_code=400, detail="Backend code is not pending approval")
-    
-    if current_flow == "backend_review":
-        if active_sessions[session_id]["backend_status"] != "pending_approval":
-            raise HTTPException(status_code=400, detail="Backend code is not pending approval")
-
+        logging.error(f"Error generating backend code: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
 @app.post("/code/backend/review/{session_id}", response_model=CodeResponse)
-async def review_backend_code(session_id: str, request: OwnerFeedbackRequest):
-    print("********* review_backend_code : ", session_id)
+async def review_backend_code(
+    session_id: str,
+    request: OwnerFeedbackRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Reviewing backend code for session: {session_id}")
     feedback = request.feedback
-    validation(session_id, "backend_review")
-    try:   
+    session_data = session_validator(session_id, redis, "backend_review")
+    
+    try:
         thread = {"configurable": {"thread_id": session_id}}
-        document_state = sdlc_workflow.get_state(thread) 
-        print("@@next node to call : ", document_state.next)
-        print("@@document_state : ", document_state)
+        document_state = sdlc_workflow.get_state(thread)
+        logging.debug(f"Next node to call: {document_state.next}")
         
-        sdlc_workflow.update_state(thread, { "backend_messages" : HumanMessage(content=feedback)})
+        sdlc_workflow.update_state(thread, {"backend_messages": HumanMessage(content=feedback)})
 
         state = None
         for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
             state = event
         
-        print("** updated state : ", state)
+        logging.debug(f"Updated state: {state}")
         status = "completed" if state["backend_status"] == 'approved' else state["backend_status"]
         
+        backend_messages = [serialize_message(msg) for msg in state["backend_messages"]]
         if status == "completed":
             security_reviews = state["security_reviews"]
             security_reviews_status = state["security_reviews_status"]
-            security_reviews_messages = state["security_reviews_messages"]
-        
-        active_sessions[session_id] = {
-            **active_sessions[session_id],    
+            security_reviews_messages = [serialize_message(msg) for msg in state["security_reviews_messages"]]
+            
+        session_data = {
+            **session_data,    
             "backend_code": state["backend_code"],
-            "backend_messages": state["backend_messages"],
+            "backend_messages": backend_messages,
             "backend_status": status,
-            "security_reviews" : security_reviews if status == "completed" else None,
+            "security_reviews": security_reviews if status == "completed" else None,
             "security_reviews_messages": security_reviews_messages if status == "completed" else None,
             "security_reviews_status": security_reviews_status if status == "completed" else None,
-        } 
+        }
         
-        print("**** Backend review completed ****")
-        print("==================================")
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"Backend code reviewed successfully for session: {session_id}")
         
         return CodeResponse.model_construct(
             session_id=session_id,
             code_type="backend",
             status=status,
             code=state["backend_code"],
-            messages=state["backend_messages"],
+            messages=backend_messages,
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error reviewing backend code: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
-# @app.get("/security/review/get/{session_id}", response_model=SecurityReviewResponse)
-# async def get_security_review(session_id : str):
-#     print("********* get_security_review : ", session_id)
-#     if session_id not in active_sessions:
-#         raise HTTPException(status_code = 404, detail = "Session not found")
+# Security review endpoints
+@app.get("/security/review/get/{session_id}", response_model=SecurityReviewResponse)
+async def get_security_review(
+    session_id: str,
+    redis: Redis = Depends(get_redis),
+):
+    logging.info(f"Getting security review for session: {session_id}")
+    session_data = session_validator(session_id, redis, "security_review")
+    try:
+        reviews = session_data["security_reviews"]
+        status = session_data["security_reviews_status"]
+        messages = session_data["security_reviews_messages"]
+        logging.info(f"Security review retrieved successfully for session: {session_id}")
+        
+        return SecurityReviewResponse.model_construct(
+            session_id=session_id,
+            status=status,
+            reviews=reviews,
+            messages=messages
+        )
+        
+    except Exception as e:
+        logging.error(f"Error getting security review: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
+
+@app.post("/security/review/review/{session_id}", response_model=SecurityReviewResponse)
+async def review_security_review(
+    session_id: str,
+    request: OwnerFeedbackRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Reviewing security review for session: {session_id}")
+    feedback = request.feedback
+    session_data = session_validator(session_id, redis, "security_review")
+    
+    try:
+        thread = {"configurable": {"thread_id": session_id}}
+        state = sdlc_workflow.get_state(thread)
+        logging.debug(f"Next node to call: {state.next}")
+        
+        sdlc_workflow.update_state(thread, {"security_reviews_messages": HumanMessage(content=feedback)})
+
+        state = None
+        for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
+            state = event
+        
+        logging.debug(f"Updated state: {state}")
+        status = "completed" if state["security_reviews_status"] == 'approved' else state["security_reviews_status"]
+        security_reviews_messages = [serialize_message(msg) for msg in state["security_reviews_messages"]]
+        if status == "completed":
+            test_cases = state["test_cases"]
+            test_cases_status = state["test_cases_status"]
+            test_cases_messages = [serialize_message(msg) for msg in state["test_cases_messages"]]
+            
+        session_data = {
+            **session_data,    
+            "security_reviews": state["security_reviews"],
+            "security_reviews_messages": security_reviews_messages,
+            "security_reviews_status": status,
+            "test_cases": test_cases if status == "completed" else None,
+            "test_cases_messages": test_cases_messages if status == "completed" else None,
+            "test_cases_status": test_cases_status if status == "completed" else None,
+        }
+        
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"Security review reviewed successfully for session: {session_id}")
+
+        return SecurityReviewResponse.model_construct(
+            session_id=session_id,
+            status=status,
+            reviews=state["security_reviews"],
+            messages=security_reviews_messages
+        )
+
+    except Exception as e:
+        logging.error(f"Error reviewing security review: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
+
+# Test cases endpoints
+@app.get("/test/cases/get/{session_id}", response_model=TestCasesResponse)
+async def get_test_cases(
+    session_id: str,
+    redis: Redis = Depends(get_redis)
+):
+    logging.info(f"Getting test cases for session: {session_id}")
+    session_data = session_validator(session_id, redis, "test_cases_generate")
+    
+    try:
+        test_cases = session_data["test_cases"]
+        status = session_data["test_cases_status"]
+        messages = session_data["test_cases_messages"]
+        logging.info(f"Test cases retrieved successfully for session: {session_id}")
+        return TestCasesResponse.model_construct(
+            session_id=session_id,
+            status=status,
+            test_cases=test_cases,
+            messages=messages
+        )
+        
+    except Exception as e:
+        logging.error(f"Error getting test cases: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
+
+@app.post("/test/cases/review/{session_id}", response_model=TestCasesResponse)
+async def review_test_cases(
+    session_id: str,
+    request: OwnerFeedbackRequest,
+    redis: Redis = Depends(get_redis),
+    sdlc_workflow = Depends(get_sdlc_workflow)
+):
+    logging.info(f"Reviewing test cases for session: {session_id}")
+    feedback = request.feedback
+    session_data = session_validator(session_id, redis, "test_cases_review")
+    
+    try:
+        thread = {"configurable": {"thread_id": session_id}}
+        state = sdlc_workflow.get_state(thread)
+        logging.debug(f"Next node to call: {state.next}")
+        
+        sdlc_workflow.update_state(thread, {"test_cases_messages": HumanMessage(content=feedback)})
+
+        state = None
+        for event in sdlc_workflow.stream(None, thread, stream_mode="values"):
+            state = event
+        
+        logging.debug(f"Updated state: {state}")
+        status = "completed" if state["test_cases_status"] == 'approved' else state["test_cases_status"]
+        test_cases_messages = [serialize_message(msg) for msg in state["test_cases_messages"]]
+        if status == "completed":
+            qa_testing = state["qa_testing"]
+            qa_testing_status = state["qa_testing_status"]
+            qa_testing_messages = [serialize_message(msg) for msg in state["qa_testing_messages"]]
+            
+        session_data = {
+            **session_data,    
+            "test_cases": state["test_cases"],
+            "test_cases_messages": test_cases_messages,
+            "test_cases_status": status,
+            "qa_testing": qa_testing if status == "completed" else None,
+            "qa_testing_messages": qa_testing_messages if status == "completed" else None,
+            "qa_testing_status": qa_testing_status if status == "completed" else None,
+        }
+        
+        redis.set(session_id, json.dumps(session_data))
+        logging.info(f"Test cases reviewed successfully for session: {session_id}")
+
+        return TestCasesResponse.model_construct(
+            session_id=session_id,
+            status=status,
+            test_cases=state["test_cases"],
+            messages=test_cases_messages
+        )
+
+    except Exception as e:
+        logging.error(f"Error reviewing test cases: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
+
+# # QA testing endpoints
+# @app.get("/qa/testing/get/{session_id}", response_model=QATestingResponse)
+# async def get_qa_testing(
+#     session_id: str,
+#     redis: Redis = Depends(get_redis)
+# ):
+#     logging.info(f"Getting QA testing results for session: {session_id}")
+#     session_data = session_validator(session_id, redis, "qa_testing")
     
 #     try:
-#         reviews = [
-#             SecurityReview(
-#                 sec_id = "SEC-001",
-#                 review = "Insecure password storage: Passwords are stored using bcryptjs with a salt of 10, which is relatively  low slat value. This makes it vulnerable to brute-force attacks.",
-#                 file_path = "backend/src/controllers/authController.js",
-#                 recommendation = "Increase the salt value to at least 12 and consider using more secure passwords hashing algorithms like Argon2 or PBKDF2. ",
-#                 priority = "high"
-#             ),
-#             SecurityReview(
-#                 sec_id = "SEC-002",
-#                 review = "Lack of input validation : the register and login endpoints do not validate the user input, making them vulnerable  to SQL injection and cross site scripting attacks.",
-#                 file_path = " backend/src/controllers/autheController.js",
-#                 recommendation = "Implementation input validation inout a library like Joi and express-validator to ensure that the input conforms to expected formats.",
-#                 priority = "medium"
-#             )
-#         ]
+#         qa_testing = session_data["qa_testing"]
+#         status = session_data["qa_testing_status"]
+#         messages = session_data["qa_testing_messages"]
+    
+#         logging.info(f"QA testing results retrieved successfully for session: {session_id}")
         
-#         active_sessions[session_id] = {
-#             **active_sessions[session_id],
-#             "security_review": reviews,
-#             "security_status": "pending_approval",
-#             "security_messages": []
-#         }
-        
-#         return SecurityReviewResponse.model_construct(
-#             session_id = session_id,
-#             status = "pending_approval",
-#             reviews = reviews,
-#             messages = []
-#         )
-        
-#     except Exception as e:
-#         raise HTTPException(status_code = 500, detail = str(e))
-
-
-# @app.post("/security/review/review/{session_id}", response_model=SecurityReviewResponse)
-# async def review_security_review(session_id: str, request: OwnerFeedbackRequest):
-#     feedback = request.feedback
-
-#     if session_id not in active_sessions:
-#         raise HTTPException(status_code=404, detail="Session not found")
-
-#     if active_sessions[session_id]["security_status"] != "pending_approval":
-#         raise HTTPException(status_code=400, detail="Security review is not pending approval")
-
-#     try:   
-#         active_sessions[session_id] = {
-#             **active_sessions[session_id],
-#             "security_review": active_sessions[session_id]["security_review"],
-#             "security_status": "completed",
-#             "security_messages": []
-#         } 
-
-#         return SecurityReviewResponse.model_construct(
+#         return QATestingResponse.model_construct(
 #             session_id=session_id,
-#             status="completed",
-#             reviews=active_sessions[session_id]["security_review"],
-#             messages=[]
-#         )
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-
-# @app.get("/test/cases/get/{session_id}", response_model=TestCasesResponse)
-# async def get_test_cases(session_id : str):
-#     print("********* get_test_cases : ", session_id)
-#     if session_id not in active_sessions:
-#         raise HTTPException(status_code = 404, detail = "Session not found")
-    
-#     try:
-        
-#         test_cases = [
-#             TestCase(
-#                 test_id = "TC-001",
-#                 description = "Test GPS Processing function",
-#                 steps = ["Input sample GPS data", "Process data using the GPS processing function", "Verify output matches expected format"],
-#                 status = "draft"
-#             ),
-#         ]
-        
-#         active_sessions[session_id] = {
-#             **active_sessions[session_id],
-#             "test_cases": test_cases,
-#             "test_cases_status": "pending_approval",
-#             "test_cases_messages": []
-#         }
-        
-#         return TestCasesResponse.model_construct(
-#             session_id = session_id,
-#             status = "pending_approval",
-#             test_cases = test_cases,
-#             messages=[]
+#             status=status,
+#             qa_testing=qa_testing,
+#             messages=messages
 #         )
         
 #     except Exception as e:
-#         raise HTTPException(status_code = 500, detail = str(e))
+#         logging.error(f"Error getting QA testing results: {str(e)}")
+#         raise SDLCException(status_code=500, detail=str(e))
 
-
-# @app.post("/test/cases/review/{session_id}", response_model=TestCasesResponse)
-# async def review_test_cases(session_id: str, request: OwnerFeedbackRequest):
-#     feedback = request.feedback
-
-#     if session_id not in active_sessions:
-#         raise HTTPException(status_code=404, detail="Session not found")
-
-#     if active_sessions[session_id]["test_cases_status"] != "pending_approval":
-#         raise HTTPException(status_code=400, detail="Test cases are not pending approval")
-
-#     try:   
-#         active_sessions[session_id] = {
-#             **active_sessions[session_id],
-#             "test_cases": active_sessions[session_id]["test_cases"],
-#             "test_cases_status": "completed",
-#             "test_cases_messages": []
-#         } 
-
-#         return TestCasesResponse.model_construct(
-#             session_id=session_id,
-#             status="completed",
-#             test_cases=active_sessions[session_id]["test_cases"],
-#             messages=[]
-#         )
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# @app.get("/qa/testing/get/{session_id}", response_model=TestCasesResponse)
-# async def get_qa_testing(session_id : str):
-#     print("********* get_qa_testing : ", session_id)
-#     if session_id not in active_sessions:
-#         raise HTTPException(status_code = 404, detail = "Session not found")
-    
-#     try:
-#         test_cases = [
-#             TestCase(
-#                 test_id = "TC-001",
-#                 description = "Test GPS Processing function",
-#                 steps = ["Input sample GPS data", "Process data using the GPS processing function", "Verify output matches expected format"],
-#                 status = "pass"
-#             ),
-#         ]
-        
-#         active_sessions[session_id] = {
-#             **active_sessions[session_id],
-#             "test_cases": test_cases,
-#             "test_cases_status": "passed",
-#             "test_cases_messages": []
-#         }
-        
-#         return TestCasesResponse.model_construct(
-#             session_id = session_id,
-#             status = "passed",
-#             test_cases = test_cases,
-#             messages=[]
-#         )
-        
-#     except Exception as e:
-#         raise HTTPException(status_code = 500, detail = str(e))

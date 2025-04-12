@@ -10,4 +10,5 @@ ipykernel
 langchain-google-genai
 langchain-openai
 redis
+pydantic-settings
 -e .
