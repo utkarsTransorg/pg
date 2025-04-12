@@ -26,7 +26,7 @@ jobs:
         run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch sdlc_complete_workflow.png" --prune-empty --tag-name-filter cat -- --all
 
       - name: reset commit-2
-      run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch notebooks/sdlc_workflow.png" --prune-empty --tag-name-filter cat -- --all
+        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch notebooks/sdlc_workflow.png" --prune-empty --tag-name-filter cat -- --all
 
       - name: reset commit-3
         run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch workflow.jpeg" --prune-empty --tag-name-filter cat -- --all
@@ -35,6 +35,6 @@ jobs:
         run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch notebooks/sdlc_workflow.png" --prune-empty --tag-name-filter cat -- --all
 
       - name: Push to hub
-      env:
-        HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      run: git push --force https://shubhamprajapati7748:$HF_TOKEN@huggingface.co/spaces/shubhamprajapati7748/sdlc-copilot main
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: git push --force https://shubhamprajapati7748:$HF_TOKEN@huggingface.co/spaces/shubhamprajapati7748/sdlc-copilot main
