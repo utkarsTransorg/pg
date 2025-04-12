@@ -14,25 +14,16 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          lfs: True
-      - name: LFS Install
-        run: git lfs install
-      - name: LFS Track
-        run: git lfs track *.jpg
-      - name: Checkout LFS objects
-        run: git lfs checkout
+          lfs: false
 
-      - name: reset commit
-        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch sdlc_complete_workflow.png" --prune-empty --tag-name-filter cat -- --all
+      - name: Ignore large files
+        run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "notebooks/sdlc_workflow.png"' HEAD
 
-      - name: reset commit-2
-        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch notebooks/sdlc_workflow.png" --prune-empty --tag-name-filter cat -- --all
+      - name: Ignore large files2
+        run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "workflow.jpeg"' HEAD
 
-      - name: reset commit-3
-        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch workflow.jpeg" --prune-empty --tag-name-filter cat -- --all
-
-      - name: reset commit-4
-        run: git filter-branch --force --index-filter "git rm --cached --ignore-unmatch notebooks/sdlc_workflow.png" --prune-empty --tag-name-filter cat -- --all
+      - name: Ignore large files3
+        run: git filter-branch --index-filter 'git rm -rf --cached --ignore-unmatch "notebooks/sdlc_workflow.png"' HEAD
 
       - name: Push to hub
         env:
