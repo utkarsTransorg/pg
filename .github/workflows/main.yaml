@@ -22,9 +22,10 @@ jobs:
           git rm -rf --cached --ignore-unmatch \
             "notebooks/sdlc_workflow.png" \
             "workflow.jpeg" \
-            "sdlc_complete_workflow.png"
+            "sdlc_complete_workflow.png" \
+            "workflow.png"
           ' HEAD
-          
+
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
