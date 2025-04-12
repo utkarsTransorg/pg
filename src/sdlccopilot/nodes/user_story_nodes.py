@@ -26,7 +26,7 @@ class UserStoryNodes:
         if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             user_stories = self.user_story_helper.generate_user_stories_with_llm(project_title, project_description, requirements);
         else:
-            # time.sleep(10)
+            time.sleep(10)
             user_stories = CONSTANT_USER_STORIES
         logging.info("User stories generated successfully !!!")
         return {
@@ -78,7 +78,7 @@ class UserStoryNodes:
             if os.environ.get("PROJECT_ENVIRONMENT") != "development":
                 user_stories = self.user_story_helper.revised_user_stories_with_llm(state.user_stories, user_review)
             else:
-                # time.sleep(10)  # Add 10 second wait
+                time.sleep(10)  # Add 10 second wait
                 user_stories = CONSTANT_REVISED_USER_STORIES
             
             logging.info("User stories revised successfully !!!")

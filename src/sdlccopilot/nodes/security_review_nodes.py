@@ -17,7 +17,7 @@ class SecurityReviewNodes:
         if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             security_reviews = self.security_review_helper.generate_security_reviews_from_llm(state.backend_code)
         else:
-            # time.sleep(10)
+            time.sleep(10)
             security_reviews = CONSTANT_SECURITY_REVIEW
         logging.info("Security reviews generated successfully !!!")
         return {
@@ -62,7 +62,7 @@ class SecurityReviewNodes:
         if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             revised_code = self.security_review_helper.revised_backend_code_with_security_reviews_from_llm(state.backend_code, state.security_reviews, user_feedback)
         else:
-            # time.sleep(10)
+            time.sleep(10)
             revised_code = CONSTANT_REVISED_BACKEND_CODE
         logging.info("Backend code revised according to security reviews with LLM !!!")
         return {

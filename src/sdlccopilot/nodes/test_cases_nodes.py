@@ -18,7 +18,7 @@ class TestCaseNodes:
         if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             test_cases = self.test_case_helper.generate_test_cases_from_llm(state.functional_documents)
         else:
-            # time.sleep(10)
+            time.sleep(10)
             test_cases = CONSTANT_TEST_CASES
         logging.info("Test cases generated successfully !!!")
         return {
@@ -64,7 +64,7 @@ class TestCaseNodes:
         if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             test_cases = self.test_case_helper.revised_test_cases_from_llm(state.test_cases, user_feedback)
         else:
-            # time.sleep(10)
+            time.sleep(10)
             test_cases = CONSTANT_REVISED_TEST_CASES
         return {
             "test_cases": test_cases,

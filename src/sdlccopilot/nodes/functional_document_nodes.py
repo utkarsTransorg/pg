@@ -18,7 +18,7 @@ class FunctionalDocumentNodes:
         if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             documents = self.document_helper.generate_functional_document_from_llm(user_stories)
         else:
-            # time.sleep(10)
+            time.sleep(10)
             documents = CONSTANT_FUNCTIONAL_DOCUMENT
         logging.info("Functional document generated successfully !!!")
         return {
@@ -66,7 +66,7 @@ class FunctionalDocumentNodes:
         if os.environ.get("PROJECT_ENVIRONMENT") != "development":  
             documents = self.document_helper.revised_functional_document_from_llm(state.functional_documents, user_feedback)
         else:
-            # time.sleep(10)
+            time.sleep(10)
             documents = CONSTANT_REVISED_FUNCTIONAL_DOCUMENT
         return {
             f"{doc_type}_documents": documents,
