@@ -16,7 +16,6 @@ class DocumentSection(BaseModel):
 
 class DesignDocumentsResponse(BaseModel):
     session_id: str
-    version: float = 1.0
     document_type: Literal["functional", "technical"]
     status: Literal["in_progress", "pending_approval", "feedback", "completed"]
     document : str

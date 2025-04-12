@@ -9,5 +9,5 @@ langchain-anthropic
 ipykernel
 langchain-google-genai
 langchain-openai
-
+redis
 -e .

@@ -5,7 +5,7 @@ from src.sdlccopilot.helpers.document import DocumentHelper
 from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.utils.constants import CONSTANT_TECHNICAL_DOCUMENT, CONSTANT_REVISED_TECHNICAL_DOCUMENT
 import os
-
+import time
 class TechnicalDocumentNodes:
     def __init__(self, llm):
         self.document_helper = DocumentHelper(llm)
@@ -15,9 +15,10 @@ class TechnicalDocumentNodes:
         doc_type = "technical"
         user_stories = state.user_stories
         functional_document = state.functional_documents
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             documents = self.document_helper.generate_technical_document_from_llm(functional_document, user_stories)
         else:
+            # time.sleep(10)
             documents = CONSTANT_TECHNICAL_DOCUMENT
         logging.info("Technical document generated successfully !!!")
         return {
@@ -60,9 +61,10 @@ class TechnicalDocumentNodes:
                 ),
                 f"{doc_type}_status": "approved",
             }
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             documents = self.document_helper.revised_technical_document_from_llm(state.technical_documents, user_feedback)
         else:
+            # time.sleep(10)
             documents = CONSTANT_REVISED_TECHNICAL_DOCUMENT
         logging.info("Technical document revised successfully !!!")
         return {

@@ -6,7 +6,7 @@ from src.sdlccopilot.helpers.security_review import SecurityReviewHelper
 from typing_extensions import Literal
 import os
 from src.sdlccopilot.utils.constants import CONSTANT_SECURITY_REVIEW, CONSTANT_REVISED_BACKEND_CODE
-
+import time
 class SecurityReviewNodes:
     def __init__(self, gemini_llm, anthropic_llm): 
         self.security_review_helper = SecurityReviewHelper(gemini_llm, anthropic_llm)
@@ -14,9 +14,10 @@ class SecurityReviewNodes:
     def generate_security_reviews(self, state : SDLCState) -> SDLCState:
         logging.info("In generate_security_reviews...")
         security_reviews = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             security_reviews = self.security_review_helper.generate_security_reviews_from_llm(state.backend_code)
         else:
+            # time.sleep(10)
             security_reviews = CONSTANT_SECURITY_REVIEW
         logging.info("Security reviews generated successfully !!!")
         return {
@@ -58,9 +59,10 @@ class SecurityReviewNodes:
                 f"{code_type}_status": "approved"
             }
         revised_code = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             revised_code = self.security_review_helper.revised_backend_code_with_security_reviews_from_llm(state.backend_code, state.security_reviews, user_feedback)
         else:
+            # time.sleep(10)
             revised_code = CONSTANT_REVISED_BACKEND_CODE
         logging.info("Backend code revised according to security reviews with LLM !!!")
         return {

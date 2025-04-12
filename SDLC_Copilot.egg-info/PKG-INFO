@@ -14,6 +14,7 @@ Requires-Dist: langchain-anthropic
 Requires-Dist: ipykernel
 Requires-Dist: langchain-google-genai
 Requires-Dist: langchain-openai
+Requires-Dist: redis
 Dynamic: author
 Dynamic: author-email
 Dynamic: requires-dist

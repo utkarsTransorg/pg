@@ -5,7 +5,7 @@ from src.sdlccopilot.logger import logging
 from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.utils.constants import CONSTANT_FRONTEND_CODE, CONSTANT_REVISED_FRONTEND_CODE, CONSTANT_BACKEND_CODE, CONSTANT_REVISED_BACKEND_CODE
 import os
-
+import time
 class CodeDevelopmentNodes:
     def __init__(self, llm): 
         self.code_helper = CodeHelper(llm)
@@ -14,9 +14,10 @@ class CodeDevelopmentNodes:
     def generate_frontend_code(self, state : SDLCState) -> SDLCState:
         logging.info("In generate_frontend_code...")
         frontend_code = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             frontend_code = self.code_helper.generate_frontend_code_from_llm(state.user_stories)
         else:
+            # time.sleep(10)
             frontend_code = CONSTANT_FRONTEND_CODE
         code_type = "frontend"
         logging.info(f"Generated frontend code")
@@ -61,9 +62,10 @@ class CodeDevelopmentNodes:
             }
         
         revised_code = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             revised_code = self.code_helper.revised_frontend_code_from_llm(state.frontend_code, user_feedback)
         else:
+            # time.sleep(10)
             revised_code = CONSTANT_REVISED_FRONTEND_CODE
         return {
             f"{code_type}_code": revised_code,
@@ -77,9 +79,10 @@ class CodeDevelopmentNodes:
     def generate_backend_code(self, state : SDLCState) -> SDLCState:
         logging.info("In generate_backend_code...")
         backend_code = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             backend_code = self.code_helper.generate_backend_code_from_llm(state.user_stories)
         else:
+            # time.sleep(10)
             backend_code = CONSTANT_BACKEND_CODE
         code_type = "backend"
         logging.info(f"Generated backend code")
@@ -124,9 +127,10 @@ class CodeDevelopmentNodes:
             }
         
         revised_code = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             revised_code = self.code_helper.revised_backend_code_from_llm(state.backend_code, user_feedback)
         else:
+            # time.sleep(10)
             revised_code = CONSTANT_REVISED_BACKEND_CODE
         return {
             f"{code_type}_code": revised_code,

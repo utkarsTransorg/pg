@@ -5,7 +5,7 @@ from src.sdlccopilot.helpers.document import DocumentHelper
 from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.utils.constants import CONSTANT_FUNCTIONAL_DOCUMENT, CONSTANT_REVISED_FUNCTIONAL_DOCUMENT
 import os
-
+import time
 class FunctionalDocumentNodes:
     def __init__(self, llm): 
         self.document_helper = DocumentHelper(llm)
@@ -15,9 +15,10 @@ class FunctionalDocumentNodes:
         doc_type = "functional"
         user_stories = state.user_stories
         documents = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
             documents = self.document_helper.generate_functional_document_from_llm(user_stories)
         else:
+            # time.sleep(10)
             documents = CONSTANT_FUNCTIONAL_DOCUMENT
         logging.info("Functional document generated successfully !!!")
         return {
@@ -62,9 +63,10 @@ class FunctionalDocumentNodes:
                 f"{doc_type}_status": "approved",
             }
         documents = None
-        if os.environ.get("PROJECT_ENVIRONMENT") == "development":  
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":  
             documents = self.document_helper.revised_functional_document_from_llm(state.functional_documents, user_feedback)
         else:
+            # time.sleep(10)
             documents = CONSTANT_REVISED_FUNCTIONAL_DOCUMENT
         return {
             f"{doc_type}_documents": documents,
