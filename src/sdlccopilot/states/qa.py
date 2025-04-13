@@ -19,6 +19,5 @@ class TestSummary(BaseModel):
 
 class QATesting(BaseModel):
     """Model for complete QA testing results"""
-    test_results: List[TestResult] = Field(..., description="List of individual test results")
     summary: TestSummary = Field(..., description="Summary statistics of the test execution") 
-
+    test_results: List[TestResult] = Field(..., description="List of individual test results")
