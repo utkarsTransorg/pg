@@ -51,7 +51,8 @@ class SDLCState(BaseModel):
     qa_testing_status : Literal["pending", "passed", "failed"] = "pending"
 
     ## Code deployment
-    deployment : str = Field(default='', description="The code deployment")
+    deployment_steps : str = Field(default='', description="The code deployment steps")
     deployment_messages: Annotated[list, add_messages] = [] 
+    deployment_status : Literal["pending", "in_progress", "pending_approval", "feedback", "approved"] = "pending"
 
 

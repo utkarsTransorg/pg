@@ -61,6 +61,12 @@ class QATestingResponse(BaseModel):
     status : Literal["in_progress", "pending_approval", "feedback", "completed"] = Field(description="The status of the qa testing")
     qa_testing : QATesting = Field(description="The qa testing")
     messages : List[Dict] = Field(description="The messages")
+    
+class DeploymentResponse(BaseModel):
+    session_id : str = Field(description="The session id")
+    status : Literal["in_progress", "pending_approval", "feedback", "completed"] = Field(description="The status of the deployment")
+    deployment_steps : str = Field(description="The deployment steps")
+    messages : List[Dict] = Field(description="The messages")
 
 #     ********* document_state :  {'functional_documents': [DocumentSection(title='INTRODUCTION', content='This document defines the functional requirements for the Password Reset 
 # Feature of the User Management System.'), DocumentSection(title='BUSINESS CONTEXT', content='The business needs a secure mechanism for users to recover access to their accounts without compromising security, improving customer satisfaction and retention.')], 'technical_documents': [], 'messages': [AIMessage(content="Please review above functional design document and provide feedback or type 'Approved' if you're satisfied.", additional_kwargs={}, response_metadata={}, id='41a4334f-abcd-4e48-a1ce-f96f36454b07')], 'document_type': 'functional', 'status': 'pending_approval', 'revised_count': 0, 'version': 1.0}

@@ -6,7 +6,7 @@ from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.utils.constants import CONSTANT_FRONTEND_CODE, CONSTANT_REVISED_FRONTEND_CODE, CONSTANT_BACKEND_CODE, CONSTANT_REVISED_BACKEND_CODE
 import os
 import time
-class CodeDevelopmentNodes:
+class DevelopmentNodes:
     def __init__(self, llm): 
         self.code_helper = CodeHelper(llm)
     

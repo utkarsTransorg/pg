@@ -4,7 +4,7 @@ from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 from uuid import uuid4
 from src.sdlccopilot.requests import ProjectRequirementsRequest, OwnerFeedbackRequest
-from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse, SecurityReviewResponse, SecurityReview, TestCasesResponse, QATestingResponse
+from src.sdlccopilot.responses import UserStoriesResponse, DesignDocumentsResponse, CodeResponse, SecurityReviewResponse, SecurityReview, TestCasesResponse, QATestingResponse, DeploymentResponse
 from src.sdlccopilot.graph.sdlc_graph import SDLCGraphBuilder
 from src.sdlccopilot.logger import logging
 from redis import Redis
@@ -180,87 +180,6 @@ async def generate_user_stories(
     except Exception as e:
         logging.error(f"Error generating user stories: {str(e)}")
         raise SDLCException(status_code=500, detail=str(e))
-    
-
-def session_validator(session_id: str, redis: Redis, current_node: str):
-    session = redis.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    session_data = json.loads(session)
-    if current_node == "user_story_review":
-        if session_data["user_story_status"] == "completed":
-            raise HTTPException(status_code=400, detail="User stories are already completed")
-        
-        if session_data["user_story_status"] != "pending_approval":
-            raise HTTPException(status_code=400, detail="User stories are not pending approval")
-    
-    if current_node == "functional_generate":
-        if session_data["user_story_status"] != "completed":
-            raise HTTPException(status_code=400, detail="User stories are not completed")
-        
-    if current_node == "functional_review":
-        if session_data["functional_status"] == "completed":
-            raise HTTPException(status_code=400, detail="Functional documents are already completed")
-        
-        if session_data["functional_status"] != "pending_approval":
-            raise HTTPException(status_code=400, detail="Functional documents are not pending approval")
-        
-    if current_node == "technical_generate":
-        if session_data["functional_status"] != "completed":
-            raise HTTPException(status_code=400, detail="Functional documents are not completed")
-        
-    if current_node == "technical_review":
-        if session_data["technical_status"] == "completed":
-            raise HTTPException(status_code=400, detail="Technical documents are already completed")
-        
-        if session_data["technical_status"] != "pending_approval":
-            raise HTTPException(status_code=400, detail="Technical documents are not pending approval")
-        
-    if current_node == "frontend_generate":
-        if session_data["technical_status"] != "completed":
-            raise HTTPException(status_code=400, detail="Technical documents are not completed")
-        
-    if current_node == "frontend_review":
-        if session_data["frontend_status"] == "completed":
-            raise HTTPException(status_code=400, detail="Frontend code is already completed")
-        
-        if session_data["frontend_status"] != "pending_approval":
-            raise HTTPException(status_code=400, detail="Frontend code is not pending approval")
-        
-    if current_node == "backend_generate":
-        if session_data["frontend_status"] != "completed":
-            raise HTTPException(status_code=400, detail="Frontend code is not completed")   
-        
-    if current_node == "backend_review":
-        if session_data["backend_status"] == "completed":
-            raise HTTPException(status_code=400, detail="Backend code is already completed")
-        
-        if session_data["backend_status"] != "pending_approval":
-            raise HTTPException(status_code=400, detail="Backend code is not pending approval")
-        
-    if current_node == "security_review":
-        if session_data["backend_status"] != "completed":
-            raise HTTPException(status_code=400, detail="Backend code is not completed")
-        
-    if current_node == "test_cases_generate":
-        if session_data["backend_status"] != "completed":
-            raise HTTPException(status_code=400, detail="Backend code is not completed")
-        
-    if current_node == "test_cases_review":
-        if session_data["test_cases_status"] == "completed":
-            raise HTTPException(status_code=400, detail="Test cases are already completed")
-        
-    if current_node == "qa_testing":
-        if session_data["test_cases_status"] != "completed":
-            raise HTTPException(status_code=400, detail="Test cases are not completed")
-        
-    if current_node == "qa_testing_review":
-        if session_data["qa_testing_status"] == "completed":
-            raise HTTPException(status_code=400, detail="QA testing is already completed")
-        
-    return session_data
-
 
 @app.post("/stories/review/{session_id}", response_model=UserStoriesResponse)
 async def review_user_stories(
@@ -792,6 +711,11 @@ async def review_test_cases(
             qa_testing_status = state["qa_testing_status"]
             qa_testing_messages = [serialize_message(msg) for msg in state["qa_testing_messages"]]
             
+            deployment_steps = state["deployment_steps"]
+            deployment_status = state["deployment_status"]
+            deployment_status = "completed" if state["deployment_status"] == 'approved' else state["deployment_status"]
+            deployment_messages = [serialize_message(msg) for msg in state["deployment_messages"]]
+            
         session_data = {
             **session_data,    
             "test_cases": state["test_cases"],
@@ -800,6 +724,9 @@ async def review_test_cases(
             "qa_testing": qa_testing if status == "completed" else None,
             "qa_testing_messages": qa_testing_messages if status == "completed" else None,
             "qa_testing_status": qa_testing_status if status == "completed" else None,
+            "deployment_steps": deployment_steps if status == "completed" else None,
+            "deployment_status": deployment_status if status == "completed" else None,
+            "deployment_messages": deployment_messages if status == "completed" else None,
         }
         
         redis.set(session_id, json.dumps(session_data))
@@ -817,29 +744,131 @@ async def review_test_cases(
         raise SDLCException(status_code=500, detail=str(e))
 
 # # QA testing endpoints
-# @app.get("/qa/testing/get/{session_id}", response_model=QATestingResponse)
-# async def get_qa_testing(
-#     session_id: str,
-#     redis: Redis = Depends(get_redis)
-# ):
-#     logging.info(f"Getting QA testing results for session: {session_id}")
-#     session_data = session_validator(session_id, redis, "qa_testing")
+@app.get("/qa/testing/get/{session_id}", response_model=QATestingResponse)
+async def get_qa_testing(
+    session_id: str,
+    redis: Redis = Depends(get_redis)
+):
+    logging.info(f"Getting QA testing report for session: {session_id}")
+    session_data = session_validator(session_id, redis, "qa_testing")
     
-#     try:
-#         qa_testing = session_data["qa_testing"]
-#         status = session_data["qa_testing_status"]
-#         messages = session_data["qa_testing_messages"]
+    try:
+        qa_testing = session_data["qa_testing"]
+        status = session_data["qa_testing_status"]
+        messages = session_data["qa_testing_messages"]
+        logging.info(f"QA testing results retrieved successfully for session: {session_id}")
+        return QATestingResponse.model_construct(
+            session_id=session_id,
+            status=status,
+            qa_testing=qa_testing,
+            messages=messages
+        )
+        
+    except Exception as e:
+        logging.error(f"Error getting QA testing results: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
     
-#         logging.info(f"QA testing results retrieved successfully for session: {session_id}")
+    
+# Deployment endpoints
+@app.get("/deployment/get/{session_id}", response_model=DeploymentResponse)
+async def get_deployment(
+    session_id: str,
+    redis: Redis = Depends(get_redis)
+):
+    logging.info(f"Getting deployment steps for session: {session_id}")
+    session_data = session_validator(session_id, redis, "deployment")
+    
+    try:
+        deployment_steps = session_data["deployment_steps"]
+        status = session_data["deployment_status"]
+        messages = session_data["deployment_messages"]
+        logging.info(f"Deployment steps retrieved successfully for session: {session_id}")
+        return DeploymentResponse.model_construct(
+            session_id=session_id,
+            status=status,
+            deployment_steps=deployment_steps,
+            messages=messages
+        )
         
-#         return QATestingResponse.model_construct(
-#             session_id=session_id,
-#             status=status,
-#             qa_testing=qa_testing,
-#             messages=messages
-#         )
-        
-#     except Exception as e:
-#         logging.error(f"Error getting QA testing results: {str(e)}")
-#         raise SDLCException(status_code=500, detail=str(e))
+    except Exception as e:
+        logging.error(f"Error getting deployment steps: {str(e)}")
+        raise SDLCException(status_code=500, detail=str(e))
 
+def session_validator(session_id: str, redis: Redis, current_node: str):
+    session = redis.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session_data = json.loads(session)
+    if current_node == "user_story_review":
+        if session_data["user_story_status"] == "completed":
+            raise HTTPException(status_code=400, detail="User stories are already completed")
+        
+        if session_data["user_story_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="User stories are not pending approval")
+    
+    if current_node == "functional_generate":
+        if session_data["user_story_status"] != "completed":
+            raise HTTPException(status_code=400, detail="User stories are not completed")
+        
+    if current_node == "functional_review":
+        if session_data["functional_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Functional documents are already completed")
+        
+        if session_data["functional_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Functional documents are not pending approval")
+        
+    if current_node == "technical_generate":
+        if session_data["functional_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Functional documents are not completed")
+        
+    if current_node == "technical_review":
+        if session_data["technical_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Technical documents are already completed")
+        
+        if session_data["technical_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Technical documents are not pending approval")
+        
+    if current_node == "frontend_generate":
+        if session_data["technical_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Technical documents are not completed")
+        
+    if current_node == "frontend_review":
+        if session_data["frontend_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Frontend code is already completed")
+        
+        if session_data["frontend_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Frontend code is not pending approval")
+        
+    if current_node == "backend_generate":
+        if session_data["frontend_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Frontend code is not completed")   
+        
+    if current_node == "backend_review":
+        if session_data["backend_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Backend code is already completed")
+        
+        if session_data["backend_status"] != "pending_approval":
+            raise HTTPException(status_code=400, detail="Backend code is not pending approval")
+        
+    if current_node == "security_review":
+        if session_data["backend_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Backend code is not completed")
+        
+    if current_node == "test_cases_generate":
+        if session_data["backend_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Backend code is not completed")
+        
+    if current_node == "test_cases_review":
+        if session_data["test_cases_status"] == "completed":
+            raise HTTPException(status_code=400, detail="Test cases are already completed")
+        
+    if current_node == "qa_testing":
+        if session_data["test_cases_status"] != "completed":
+            raise HTTPException(status_code=400, detail="Test cases are not completed")
+        
+    if current_node == "qa_testing_review":
+        if session_data["qa_testing_status"] == "completed":
+            raise HTTPException(status_code=400, detail="QA testing is already completed")
+        
+    return session_data

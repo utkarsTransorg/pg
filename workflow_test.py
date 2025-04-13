@@ -4,15 +4,17 @@ from langchain_core.messages import HumanMessage
 from src.sdlccopilot.logger import logging
 import uuid
 
+thread = {"configurable": {"thread_id": str(uuid.uuid4())}}
+
 if __name__ == "__main__":
     logging.info("***** Starting the workflow test *****")
     builder = SDLCGraphBuilder()
     sdlc_workflow = builder.build()
     
     # graph_png = sdlc_workflow.get_graph().draw_mermaid_png()
-    # with open("sdlc_complete_workflow.png", "wb") as f:
+    # with open("workflow.png", "wb") as f:
     #     f.write(graph_png)
-    
+        
     project_title = "PayMate: Your Ultimate Payment Companion"
     project_description = "PayMate is a comprehensive payment application that allows users to perform seamless transactions using the Unified Payments Interface (UPI). Beyond basic payments, PayMate offers features such as quick loans, bill payments, and a user-friendly interface, making it a one-stop solution for all financial needs."
     requirements = ["Implement multi-factor authentication, including biometrics (fingerprint and facial recognition) and MPIN, to secure user accounts.​", "Enable users to link multiple bank accounts and perform instant fund transfers using UPI.", "Provide users with access to instant micro-loans with minimal documentation.", "Allow users to pay utility bills such as electricity, water, gas, and broadband directly through the app."]
@@ -34,7 +36,6 @@ if __name__ == "__main__":
         "revised_count" : 0,
     }
     # Thread
-    thread = {"configurable": {"thread_id": str(uuid.uuid4())}}
     
     print("Workflow Starting...")
 
@@ -159,7 +160,7 @@ if __name__ == "__main__":
         state = event
     
     current_state = sdlc_workflow.get_state(thread) 
-    print("Next Node : ", current_state.next)
-    print("updated state : ", state)
+    print("** Next Node : ", current_state.next)
+    print("******* updated state ******* : ", state)
 
     print("Workflow Completed Successfully !!!")

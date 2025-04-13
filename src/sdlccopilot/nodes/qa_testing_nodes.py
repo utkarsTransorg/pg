@@ -4,10 +4,10 @@ from src.sdlccopilot.states.sdlc import SDLCState
 from src.sdlccopilot.logger import logging
 from src.sdlccopilot.helpers.qa_testing import QATestingHelper
 from typing_extensions import Literal
-from src.sdlccopilot.utils.constants import CONSTANT_USER_STORIES, CONSTANT_REVISED_USER_STORIES
+from src.sdlccopilot.utils.constants import CONSTANT_QA_TESTING_RESULTS, CONSTANT_REVISED_BACKEND_CODE
 import os
 from src.sdlccopilot.logger import logging
-
+import time
 CONSTANT_TEST_CASES = [
   {
     "test_id": "TC001",
@@ -62,22 +62,28 @@ CONSTANT_TEST_CASES = [
 ]
 
 class QATestingNodes:
-    def __init__(self, llm): 
-        self.qa_testing_helper = QATestingHelper(llm)
+    def __init__(self, gemini_llm, anthropic_llm): 
+        self.qa_testing_helper = QATestingHelper(gemini_llm, anthropic_llm)
         
     def perform_qa_testing(self, state : SDLCState) -> SDLCState:
         logging.info("In perform_qa_testing...")
         test_cases = CONSTANT_TEST_CASES
         # TODO : get test cases from the state
         # test_cases = state.test_cases
-        qa_testing = self.qa_testing_helper.perform_qa_testing_with_llm(test_cases, state.backend_code)
-        if qa_testing.summary.pass_percentage > 50:
+        qa_testing = None
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":  
+            qa_testing = self.qa_testing_helper.perform_qa_testing_with_llm(test_cases, state.backend_code)
+        else:
+            time.sleep(10)
+            qa_testing = CONSTANT_QA_TESTING_RESULTS
+        
+        if qa_testing['summary']['pass_percentage'] > 50:
             logging.info("QA testing passed.")
             return {
                 "qa_testing": qa_testing,
                 "qa_testing_status": "passed",
                 "qa_testing_messages": AIMessage(
-                    content="Great! QA testing have been finalized. You can now proceed with next steps."
+                  content="Great! QA testing have been finalized. You can now proceed with next steps."
                 )
             }
         else:
@@ -86,15 +92,15 @@ class QATestingNodes:
                 "qa_testing": qa_testing,
                 "qa_testing_status": "failed",
                 "qa_testing_messages": AIMessage(
-                    content="I'll revise the code accordingly."
+                  content="QA testing have been failed. I've revised the code according to the QA testing results."
                 )
             }
 
-    def should_fix_after_qa_testing(self, state : SDLCState) -> Literal["passed", "failed"]:
+    def should_fix_code_after_qa_testing(self, state : SDLCState) -> Literal["passed", "failed"]:
         return "passed" if state.qa_testing_status == 'passed' else 'failed'
 
-    def fixed_code_after_qa_testing(self, state : SDLCState) -> SDLCState:
-        logging.info("In fixed_code_after_qa_testing...")
+    def fix_code_after_qa_testing(self, state : SDLCState) -> SDLCState:
+        logging.info("In fix_code_after_qa_testing...")
         code_type = "backend"
         revised_count = state.revised_count + 1
         logging.info(f"revised_count : {revised_count}")
@@ -108,7 +114,12 @@ class QATestingNodes:
             }
         
         failed_test_cases = [test_case for test_case in state.qa_testing if test_case['status'] == "failed"]
-        revised_code = self.qa_testing_helper.revised_backend_code_with_qa_testing_from_llm(state.backend_code, failed_test_cases)
+        revised_code = None
+        if os.environ.get("PROJECT_ENVIRONMENT") != "development":
+            revised_code = self.qa_testing_helper.revised_backend_code_with_qa_testing_from_llm(state.backend_code, failed_test_cases)
+        else:
+            time.sleep(10)
+            revised_code = CONSTANT_REVISED_BACKEND_CODE
         logging.info("Fixed code after QA testing completed !!!")
         return {
             f"{code_type}_code": revised_code,
