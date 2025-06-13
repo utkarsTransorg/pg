@@ -1,0 +1,1 @@
+export const BACKEND_URL = "https://shubhamprajapati7748-sdlc-copilot.hf.space";
