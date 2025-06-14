@@ -1,1 +1,1 @@
-export const BACKEND_URL = "https://shubhamprajapati7748-sdlc-copilot.hf.space";
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
