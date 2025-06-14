@@ -15,11 +15,7 @@ app_port: 7860
 
 **SDLC Copilot** is an **Agentic AI** system designed to streamline and automate the **Software Development Lifecycle (SDLC)**. From requirement gathering to deployment and maintenance, SDLC Copilot leverages AI to optimize development workflows, reduce manual effort, and ensure software quality.
 
-Whether you’re a solo developer, a startup, or an enterprise, SDLC Copilot acts as your AI-driven assistant to accelerate development, enforce best practices, and enhance collaboration across teams.
-
-## Frontend app
-
-## `https://github.com/shubhamprajapati7748/sdlc-copilot-frontend`
+Whether you're a solo developer, a startup, or an enterprise, SDLC Copilot acts as your AI-driven assistant to accelerate development, enforce best practices, and enhance collaboration across teams.
 
 ## **✨ Features**
 
@@ -77,29 +73,143 @@ Whether you’re a solo developer, a startup, or an enterprise, SDLC Copilot act
 
 ### **1️⃣ Prerequisites**
 
-- Install **Docker** and **Docker Compose**
-- Install **Python 3.8+** and **pip**
+- **Docker and Docker Compose**
+  - [Install Docker](https://docs.docker.com/get-docker/)
+  - [Install Docker Compose](https://docs.docker.com/compose/install/)
+- **Python 3.8+**
+  - [Install Python](https://www.python.org/downloads/)
+  - [Install pip](https://pip.pypa.io/en/stable/installation/)
+- **Node.js 16+ and npm**
+  - [Install Node.js and npm](https://nodejs.org/)
 
 ### **2️⃣ Installation**
 
-Clone the repository:
-
+1. **Clone the repository:**
 ```bash
 git clone https://github.com/shubhamprajapati7748/sdlc-copilot.git
 cd sdlc-copilot
 ```
 
-Run the setup:
+### **3️⃣ Local Development Setup**
+
+#### **Backend Setup (FastAPI)**
+
+1. **Create and activate virtual environment**
+
+   **Using Anaconda:**
+   ```bash
+   # Create a new conda environment
+   conda create -p venv python==3.12 -y
+   conda activate venv/
+   ```
+
+   **OR Using Python venv (Alternative):**
+   ```bash
+   # Create virtual environment
+   python -m venv venv
+   
+   # Activate virtual environment
+   # On macOS/Linux:
+   source venv/bin/activate
+   # On Windows:
+   .\venv\Scripts\activate
+   ```
+
+2. **Set up the backend:**
+   ```bash
+   # Navigate to backend directory
+   cd backend
+   
+   # Install dependencies
+   pip install -r requirements.txt
+   ```
+
+3. **Configure environment variables:**
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   
+   # Edit .env file with your configuration
+   # Required all variables
+   ```
+
+4. **Start the backend server:**
+   ```bash
+   # Run the development server
+   uvicorn app:app --reload --port 8000
+   ```
+   
+   The backend API will be available at `http://127.0.0.1:8000`
+   - API documentation: `http://127.0.0.1:8000/docs`
+
+#### **Frontend Setup (Vite + React)**
+
+1. **Set up the frontend:**
+   ```bash
+   # Navigate to frontend directory
+   cd frontend
+   
+   # Install dependencies
+   npm install
+   # or
+   yarn install
+   ```
+
+2. **Configure environment variables:**
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   
+   # Edit .env file with your configuration
+   # Required variables:
+   VITE_BACKEND_URL="http://127.0.0.1:8000"
+   ```
+
+3. **Start the development server:**
+   ```bash
+   # Run the development server
+   npm run dev
+   # or
+   yarn dev
+   ```
+   
+   The frontend will be available at `http://localhost:5173`
+
+<!-- ### **4️⃣ Running with Docker (Alternative)**
+
+If you prefer using Docker:
 
 ```bash
+# Build and start the containers
+docker-compose up --build
+
+# To run in detached mode
 docker-compose up -d
 ```
 
-Start the backend:
+The application will be available at:
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000` -->
 
-```bash
-uvicorn app:app --reload
-```
+### **5️⃣ Troubleshooting**
+
+Common issues and solutions:
+
+1. **Port conflicts:**
+   - If port 8000 is in use, modify the port in the backend command
+   - If port 5173 is in use, Vite will automatically suggest an alternative port
+
+2. **Environment variables:**
+   - Ensure all required environment variables are set in both `.env` files
+   - Restart the servers after modifying environment variables
+
+3. **Dependencies issues:**
+   - Delete `node_modules` and reinstall if frontend dependencies fail
+   - Recreate virtual environment if backend dependencies fail
+
+4. **API connection:**
+   - Verify the `VITE_BACKEND_URL` in frontend `.env` matches your backend URL
+   - Check if the backend server is running and accessible
 
 ---
 
