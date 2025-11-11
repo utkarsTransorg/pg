@@ -62,8 +62,8 @@ CONSTANT_TEST_CASES = [
 ]
 
 class QATestingNodes:
-    def __init__(self, gemini_llm, anthropic_llm): 
-        self.qa_testing_helper = QATestingHelper(gemini_llm, anthropic_llm)
+    def __init__(self, gemini_llm): 
+        self.qa_testing_helper = QATestingHelper(gemini_llm)
         
     def perform_qa_testing(self, state : SDLCState) -> SDLCState:
         logging.info("In perform_qa_testing...")

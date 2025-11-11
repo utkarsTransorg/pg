@@ -1,80 +1,122 @@
 import React, { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { BACKEND_URL } from "../../config";
-import { marked } from "marked"
+import { marked } from "marked";
 import { Download } from "lucide-react";
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown from "react-markdown";
 import Loading from "../components/Loading";
 import ToastError from "../components/ToastError";
 
-
 export default function TechnicalDesignPhase() {
-    const location = useLocation();
-    const data = location.state?.data
-    const [technicalDocument, setTechnicalDocument] = useState<string>("");
-    const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const data = location.state?.data;
+  const [technicalDocument, setTechnicalDocument] = useState<string>("");
+  const [loading, setLoading] = useState(false);
 
-    const getTechnicalDesignPhaseDoc = async () => {
-        setLoading(true);
+  const getTechnicalDesignPhaseDoc = async () => {
+    setLoading(true);
 
-        if (location.state?.["technical-design"]?.document) {
-            console.log("technical-design inside")
-            setTechnicalDocument(location.state?.["technical-design"]?.document);
-            setLoading(false);
-            return
-        }
-        try {
-            if (!data?.session_id) {
-                throw new Error("Session ID is missing");
-            }
-            const payload = {
-                session_id: data.session_id,
-                feedback: "approved",
-            }
-
-            const response = await fetch(`${BACKEND_URL}/documents/technical/generate/${data.session_id}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                throw new Error("failed to call /documents/technical/generate/{{session_id}}")
-            }
-
-            const technical_doc = await response.json();
-
-            setTechnicalDocument(technical_doc?.document || "");
-            setLoading(false);
-
-        } catch (error) {
-            console.error("error calling /documents/technical/generate/{{session_id}}")
-            setLoading(false)
-            ToastError(error)
-        }
+    if (location.state?.["technical-design"]?.document) {
+      console.log("technical-design inside");
+      setTechnicalDocument(location.state?.["technical-design"]?.document);
+      setLoading(false);
+      return;
     }
+    try {
+      if (!data?.session_id) {
+        throw new Error("Session ID is missing");
+      }
+      const payload = {
+        session_id: data.session_id,
+        feedback: "approved",
+      };
 
-    React.useEffect(() => {
-        if (data) {
-            getTechnicalDesignPhaseDoc();
+      const response = await fetch(
+        `${BACKEND_URL}/documents/technical/generate/${data.session_id}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         }
-    }, [location.state])
+      );
 
+      if (!response.ok) {
+        throw new Error(
+          "failed to call /documents/technical/generate/{{session_id}}"
+        );
+      }
 
-    const generateMarkdown = (): string => {
-        return technicalDocument
+      const technical_doc = await response.json();
+
+      setTechnicalDocument(technical_doc?.document || "");
+      setLoading(false);
+    } catch (error) {
+      console.error(
+        "error calling /documents/technical/generate/{{session_id}}"
+      );
+      setLoading(false);
+      ToastError(error);
     }
+  };
 
+  React.useEffect(() => {
+    if (data) {
+      getTechnicalDesignPhaseDoc();
+    }
+  }, [location.state]);
 
-    const handleDownload = () => {
-        const markdownContent = generateMarkdown();
-        // Convert markdown to HTML using marked
-        const htmlConverted = marked(markdownContent); // NEW: Convert markdown to HTML
+  const generateMarkdown = (): string => {
+    return normalizeMarkdown(technicalDocument);
+  };
 
-        // Wrap the converted HTML in a minimal HTML template with inline CSS for professional styling
-        const htmlContent = `
+  const normalizeMarkdown = (rawDoc: string): string => {
+    if (!rawDoc) return "";
+
+    let md = rawDoc;
+
+    // 1️⃣ Decode escaped newlines
+    md = md.replace(/\\n/g, "\n");
+
+    // 2️⃣ Remove any markdown code fences like ``` or ```markdown
+    md = md.replace(/```(?:markdown)?/gi, "");
+
+    // 3️⃣ Remove any super long Markdown tables (corrupted ones)
+    md = md.replace(/\n\|[\s\S]*?(?=\n###|\n##|\Z)/g, "\n\n");
+
+    // 4️⃣ Remove any leftover HTML tags
+    md = md.replace(/<[^>]+>/g, "");
+
+    // 5️⃣ Clean multiple spaces/tabs/newlines
+    md = md.replace(/\t+/g, " ");
+    md = md.replace(/ {2,}/g, " ");
+    md = md.replace(/\n{3,}/g, "\n\n");
+
+    // 6️⃣ Normalize section headings
+    md = md.replace(/###\s*\d+\.\s*/g, "### ");
+    md = md.replace(/##\s*\d+\.\s*/g, "## ");
+
+    // 7️⃣ Remove duplicate "FUNCTIONAL REQUIREMENTS" remnants
+    md = md.replace(
+      /### FUNCTIONAL REQUIREMENTS\s*### FUNCTIONAL REQUIREMENTS/g,
+      "### FUNCTIONAL REQUIREMENTS"
+    );
+
+    // 8️⃣ Ensure spacing before/after each heading
+    md = md.replace(/(### [^\n]+)/g, "\n\n$1\n\n");
+
+    // 9️⃣ Trim extra whitespace at start and end
+    return md.trim();
+  };
+
+  const handleDownload = () => {
+    const markdownContent = generateMarkdown();
+    // Convert markdown to HTML using marked
+    const htmlConverted = marked(markdownContent); // NEW: Convert markdown to HTML
+
+    // Wrap the converted HTML in a minimal HTML template with inline CSS for professional styling
+    const htmlContent = `
           <html xmlns:o='urn:schemas-microsoft-com:office:office'
                 xmlns:w='urn:schemas-microsoft-com:office:word'
                 xmlns='http://www.w3.org/TR/REC-html40'>
@@ -98,44 +140,42 @@ export default function TechnicalDesignPhase() {
               ${htmlConverted}
             </body>
           </html>`;
-        const blob = new Blob([htmlContent], { type: "application/msword" });
-        const url = URL.createObjectURL(blob);
+    const blob = new Blob([htmlContent], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
 
-        const link = document.createElement("a");
-        link.href = url;
-        var title = data?.project_requirements?.title;
-        link.download = `${title}_technical_doc`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
+    const link = document.createElement("a");
+    link.href = url;
+    var title = data?.project_requirements?.title;
+    link.download = `${title}_technical_doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
+  if (loading) {
+    return <Loading />;
+  }
 
-    if (loading) {
-        return <Loading />;
-    }
-
-
-    return (
-        <div
-            className="flex-1 p-6 overflow-y-auto bg-gray-90 bg-gray-900"
-        >
-            <div className="max-w-6xl mx-auto">
-                <div className="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
-                    <div className="flex justify-between items-center mb-4">
-                        <h1 className="text-3xl font-bold">Technical Design Phase Document</h1>
-                        <button
-                            onClick={handleDownload}
-                            className="bg-green-600 hover:bg-green-700 text-green-200 font-bold py-2 px-4 
+  return (
+    <div className="flex-1 p-6 overflow-y-auto bg-gray-90 bg-gray-900">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-3xl font-bold">
+              Technical Design Phase Document
+            </h1>
+            <button
+              onClick={handleDownload}
+              className="bg-green-600 hover:bg-green-700 text-green-200 font-bold py-2 px-4 
                               flex gap-2 items-center justify-center rounded-full text-sm active:scale-[.9]
                                 hover:scale-[1.02]"
-                        >
-                            <Download className="h-4 w-4 font-bold animate-bounce" /> Download
-                        </button>
-                    </div>
-                    <div
-                        className="
+            >
+              <Download className="h-4 w-4 font-bold animate-bounce" /> Download
+            </button>
+          </div>
+          <div
+            className="
                 prose prose-invert 
                 max-w-none
                 prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-2
@@ -146,12 +186,11 @@ export default function TechnicalDesignPhase() {
                 prose-headings:font-semibold prose-headings:text-blue-400 
                 prose-strong:text-white
               "
-                    >
-                        <ReactMarkdown>{generateMarkdown()}</ReactMarkdown>
-                    </div>
-                </div>
-            </div>
+          >
+            <ReactMarkdown>{generateMarkdown()}</ReactMarkdown>
+          </div>
         </div>
-    )
-
+      </div>
+    </div>
+  );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import SDLCPhaseSelector from "../components/SDLCPhaseSelector";
 import ChatInterface from "../components/ChatInterface";
@@ -11,7 +11,7 @@ import { FileItem } from "../types";
 import TechnicalDesignPhase from "../phases/TechnicalDesignPhase";
 import Security from "../phases/Security";
 import TestCases from "../phases/TestCases";
-import QATesting from "../phases/QATesting";
+import DeploymentPage from "../phases/DeploymentPhase";
 
 export default function SDLC() {
   const location = useLocation();
@@ -53,11 +53,24 @@ export default function SDLC() {
           {selectedPhase === "user-stories" && <UserStoriesPhase />}
           {selectedPhase === "functional-design" && <FunctionalDesignPhase />}
           {selectedPhase === "technical-design" && <TechnicalDesignPhase />}
-          {selectedPhase === "frontend-coding" && <CodeDevelopmentPhase selectedPhase={selectedPhase} files={files} setFiles={setFiles} />}
-          {selectedPhase === "backend-coding" && <CodeDevelopmentPhase selectedPhase={selectedPhase} files={backendFiles} setFiles={setBackendFiles} />}
+          {selectedPhase === "frontend-coding" && (
+            <CodeDevelopmentPhase
+              selectedPhase={selectedPhase}
+              files={files}
+              setFiles={setFiles}
+            />
+          )}
+          {selectedPhase === "backend-coding" && (
+            <CodeDevelopmentPhase
+              selectedPhase={selectedPhase}
+              files={backendFiles}
+              setFiles={setBackendFiles}
+            />
+          )}
           {selectedPhase === "security" && <Security />}
           {selectedPhase === "testing" && <TestCases />}
-          {selectedPhase === "qa-testing" && <QATesting />}
+          {selectedPhase === "deployment" && <DeploymentPage />}
+          {/* {selectedPhase === "qa-testing" && <QATesting />} */}
           {/* {selectedPhase === "technical-design" && <TechnicalDesignPhase />} */}
 
           {/* <div className="flex-1 p-6 overflow-y-auto">
@@ -70,7 +83,10 @@ export default function SDLC() {
             </p>
           </div> */}
 
-          <ChatInterface selectedPhase={selectedPhase} setSelectedPhase={setSelectedPhase} />
+          <ChatInterface
+            selectedPhase={selectedPhase}
+            setSelectedPhase={setSelectedPhase}
+          />
         </div>
       </div>
     </div>

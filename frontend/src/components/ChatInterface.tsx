@@ -10,17 +10,20 @@ import ToastSuccess from "./ToastSuccess";
 import { phases } from "./SDLCPhaseSelector";
 
 interface Props {
-  selectedPhase: SDLCPhase,
+  selectedPhase: SDLCPhase;
   setSelectedPhase: (phase: SDLCPhase) => void;
 }
 
-export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props) {
+export default function ChatInterface({
+  selectedPhase,
+  setSelectedPhase,
+}: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
   const requirements = location.state?.requirements as ProjectRequirements;
-  const data = location.state?.data
+  const data = location.state?.data;
   const [loading, setLoading] = useState(false);
 
   const getNextPhase = (current: SDLCPhase): SDLCPhase => {
@@ -43,7 +46,7 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
       return current;
     }
     return phaseOrder[currentIndex + 1];
-  }
+  };
 
   const phaseApiMapping: Partial<Record<SDLCPhase, string>> = {
     "user-stories": "stories/review",
@@ -51,14 +54,14 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
     "technical-design": "documents/technical/review",
     "frontend-coding": "code/frontend/review",
     "backend-coding": "code/backend/review",
-    "security": "security/review/review",
-    "testing": "test/cases/review"
-  }
+    security: "security/review/review",
+    testing: "test/cases/review",
+  };
 
   const getPhaseLabel = (phaseId: SDLCPhase) => {
-    const phase = phases.find(p => p.id === phaseId);
+    const phase = phases.find((p) => p.id === phaseId);
     return phase ? phase.label : "Unknown Phase";
-  }
+  };
 
   const handleApproveAndContinue = async () => {
     setLoading(true);
@@ -73,30 +76,30 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ feedback: "approved" })
+          body: JSON.stringify({ feedback: "approved" }),
         });
 
         const jsonResponse = await response.json();
-        console.log(jsonResponse)
-        ToastSuccess(`Approved ${getPhaseLabel(selectedPhase)}!!`)
+        console.log(jsonResponse);
+        ToastSuccess(`Approved ${getPhaseLabel(selectedPhase)}!!`);
         navigate("/sdlc", {
           state: {
             ...prevState,
             completedPhases: [
               ...(prevState?.completedPhases || []),
-              selectedPhase
+              selectedPhase,
             ],
             [selectedPhase]: jsonResponse,
-          }
-        })
+          },
+        });
         const nextPhase = getNextPhase(selectedPhase);
-        setLoading(false);
         setSelectedPhase(nextPhase);
-        return
+        return;
       } catch (error) {
-        console.log(`Error while calling ${fullUrl}: `, error)
-        setLoading(false);
+        console.log(`Error while calling ${fullUrl}: `, error);
         ToastError(`Error while calling ${fullUrl}: ${error}`);
+      } finally {
+        setLoading(false);
       }
     }
     if (!data?.session_id && selectedPhase !== "requirements") {
@@ -114,7 +117,7 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
       state: {
         ...prevState,
         completedPhases: [...(prevState?.completedPhases || []), selectedPhase],
-      }
+      },
     });
     // console.log(location.state)
     const nextPhase = getNextPhase(selectedPhase);
@@ -127,7 +130,7 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
     if (!input.trim()) {
       setLoading(false);
       return;
-    };
+    }
 
     const relativeUrl = phaseApiMapping[selectedPhase];
     const prevState = location.state || {};
@@ -142,18 +145,18 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
           },
           body: JSON.stringify({ feedback: input }),
         });
-        console.log(input)
+        console.log(input);
 
         const jsonResponse = await response.json();
         console.log(jsonResponse);
         navigate("/sdlc", {
           state: {
             ...prevState,
-            [selectedPhase]: jsonResponse
-          }
-        })
+            [selectedPhase]: jsonResponse,
+          },
+        });
       } catch (error) {
-        console.log(`error while calling ${fullUrl}: `, error)
+        console.log(`error while calling ${fullUrl}: `, error);
         ToastError(`error while calling ${fullUrl}: ${error}`);
       } finally {
         setLoading(false);
@@ -182,6 +185,9 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
       setMessages((prev) => [...prev, aiResponse]);
     }, 1000);
   };
+  if (loading) {
+    return <Loading />;
+  }
 
   return (
     <div className="flex flex-col h-20 bg-gray-900 border-t border-gray-800">
@@ -205,17 +211,21 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
       </div> */}
 
       <form onSubmit={handleSubmit} className="p-4 border-t border-gray-800">
-        <div className={`flex space-x-2 ${selectedPhase === 'requirements' && 'items-center justify-center'}`}>
+        <div
+          className={`flex space-x-2 ${
+            selectedPhase === "requirements" && "items-center justify-center"
+          }`}
+        >
           <button
             onClick={handleApproveAndContinue}
-            className="px-6 py-3 bg-blue-600 text-white rounded-md 
+            className="px-6 py-3 bg-[#2F4F81] text-white rounded-md 
               hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500
                 focus:ring-offset-2 focus:ring-offset-gray-800 transition-colors duration-200
                 active:scale-[0.8]"
           >
             Approve & Continue
           </button>
-          {selectedPhase !== "requirements" &&
+          {selectedPhase !== "requirements" && (
             <>
               <input
                 type="text"
@@ -226,14 +236,14 @@ export default function ChatInterface({ selectedPhase, setSelectedPhase }: Props
               />
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="px-4 py-2 bg-[#2F4F81] text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 <Send className="w-5 h-5" />
               </button>
-            </>}
+            </>
+          )}
         </div>
       </form>
-      {loading && <Loading />}
     </div>
   );
 }

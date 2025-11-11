@@ -5,6 +5,7 @@ import type { ProjectRequirements } from "../types";
 import { BACKEND_URL } from "../../config";
 import Loading from "../components/Loading";
 import ToastError from "../components/ToastError";
+import logo from "../assets/logo.svg";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export default function Home() {
         title: requirements.title,
         description: requirements.description,
         requirements: requirements.objectives,
-      }
+      };
       // console.log(payload)
       const response = await fetch(`${BACKEND_URL}/stories/generate`, {
         method: "POST",
@@ -36,23 +37,25 @@ export default function Home() {
       const data = await response.json();
 
       console.log(data);
-      setLoading(false);
       // In a real app, you'd save this to state management or backend
       navigate("/sdlc", { state: { requirements, data } });
-
     } catch (error) {
       console.error("error calling /stories/generate API:", error);
+      ToastError(error);
+    } finally {
       setLoading(false);
-      ToastError(error)
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white pt-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ">
+    <div className="min-h-screen bg-gray-950 text-white pt-5">
+      <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 ">
         <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold mb-4">Welcome to SDLC Copilot</h1>
-          <p className="text-gray-400 max-w-2xl mx-auto">
+          <img src={logo} className="h-20 mx-auto" />
+          <h1 className="text-4xl font-bold mb-4 mt-5">
+            Welcome to TransOrg SDLC Copilot
+          </h1>
+          <p className="text-gray-400 max-w-3xl mx-auto">
             Your AI-powered companion for streamlining the Software Development
             Life Cycle.
             <p> Start by entering your project requirements below.</p>
@@ -63,7 +66,7 @@ export default function Home() {
           <RequirementsForm onSubmit={handleSubmit} />
         </div>
       </div>
-      {loading && <Loading />}
+      {loading && <Loading currentStep={0} />}
     </div>
   );
 }

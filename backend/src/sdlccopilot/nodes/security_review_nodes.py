@@ -8,8 +8,8 @@ import os
 from src.sdlccopilot.utils.constants import CONSTANT_SECURITY_REVIEW, CONSTANT_REVISED_BACKEND_CODE
 import time
 class SecurityReviewNodes:
-    def __init__(self, gemini_llm, anthropic_llm): 
-        self.security_review_helper = SecurityReviewHelper(gemini_llm, anthropic_llm)
+    def __init__(self, gemini_llm): 
+        self.security_review_helper = SecurityReviewHelper(gemini_llm)
         
     def generate_security_reviews(self, state : SDLCState) -> SDLCState:
         logging.info("In generate_security_reviews...")

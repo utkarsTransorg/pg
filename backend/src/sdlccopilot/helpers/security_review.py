@@ -8,9 +8,8 @@ from src.sdlccopilot.exception import CustomException
 import sys
 
 class SecurityReviewHelper:
-    def __init__(self, gemini_llm, anthropic_llm):
+    def __init__(self, gemini_llm):
         self.gemini_llm = gemini_llm
-        self.anthropic_llm = anthropic_llm
         
     def generate_security_reviews_from_llm(self, backend_code):
         try:

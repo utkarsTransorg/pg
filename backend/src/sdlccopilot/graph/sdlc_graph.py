@@ -12,26 +12,23 @@ from src.sdlccopilot.nodes.qa_testing_nodes import QATestingNodes
 from src.sdlccopilot.nodes.deployment_nodes import DeploymentNodes
 from IPython.display import Image, display
 from src.sdlccopilot.llms.gemini import GeminiLLM
-from src.sdlccopilot.llms.groq import GroqLLM
-from src.sdlccopilot.llms.anthropic import AnthropicLLM
 from src.sdlccopilot.logger import logging
 
 ## LLMs 
 gemini_llm = GeminiLLM("gemini-2.0-flash").get()
-qwen_llm = GroqLLM("qwen-2.5-32b").get()
-anthropic_llm = AnthropicLLM("claude-3-5-sonnet-20241022").get()
+
 
 class SDLCGraphBuilder:
     def __init__(self):
         self.sdlc_graph_builder=StateGraph(SDLCState)
         self.story_node = UserStoryNodes(gemini_llm)
-        self.functional_document_node = FunctionalDocumentNodes(qwen_llm)
-        self.technical_document_node = TechnicalDocumentNodes(qwen_llm)
-        self.development_node = DevelopmentNodes(anthropic_llm)
-        self.security_review_node = SecurityReviewNodes(gemini_llm, anthropic_llm)
+        self.functional_document_node = FunctionalDocumentNodes(gemini_llm)
+        self.technical_document_node = TechnicalDocumentNodes(gemini_llm)
+        self.development_node = DevelopmentNodes(gemini_llm)
+        self.security_review_node = SecurityReviewNodes(gemini_llm)
         self.test_case_node = TestCaseNodes(gemini_llm)
-        self.qa_testing_node = QATestingNodes(gemini_llm, anthropic_llm)
-        self.deployment_node = DeploymentNodes(qwen_llm)
+        self.qa_testing_node = QATestingNodes(gemini_llm)
+        self.deployment_node = DeploymentNodes(gemini_llm)
         
     def build(self):
         """

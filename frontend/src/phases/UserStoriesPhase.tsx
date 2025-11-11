@@ -6,7 +6,7 @@ import Loading from "../components/Loading";
 export default function UserStoriesPhase() {
   const location = useLocation();
   const data = location.state?.data;
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   //   const requirements = location.state?.requirements as UserStories;
 
   const [userStories, setUserStories] = useState<UserStories>({
@@ -18,25 +18,25 @@ export default function UserStoriesPhase() {
     // console.log(data.user_stories)
     // console.log(data.user_stories[0].story_id)
     // console.log(location.state?.["user-stories"].user_stories)
-    setLoading(true)
+    setLoading(true);
     if (location.state?.["user-stories"]?.user_stories) {
-      console.log("inside")
-      setUserStories(prevState => ({
+      console.log("inside");
+      setUserStories((prevState) => ({
         ...prevState,
         user_stories: location.state?.["user-stories"].user_stories,
-      }))
-      setLoading(false)
-      return
+      }));
+      setLoading(false);
+      return;
     }
     if (data.user_stories) {
-      setUserStories(prevState => ({
+      setUserStories((prevState) => ({
         ...prevState,
         user_stories: [...prevState.user_stories, ...data.user_stories],
-      }))
-      setLoading(false)
+      }));
+      setLoading(false);
     }
     // console.log(userStories.user_stories)
-  }, [location.state])
+  }, [location.state]);
   const badgeColors = [
     "bg-blue-900/50 text-blue-300",
     "bg-green-900/50 text-green-300",
@@ -46,7 +46,7 @@ export default function UserStoriesPhase() {
     "bg-teal-900/50 text-teal-300",
   ];
 
-  if(loading) {
+  if (loading) {
     return <Loading />;
   }
 

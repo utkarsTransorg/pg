@@ -20,10 +20,6 @@ from dotenv import load_dotenv
 load_dotenv()
 ## Environment Variable
 os.environ['PROJECT_ENVIRONMENT'] = os.getenv("PROJECT_ENVIRONMENT")
-os.environ['GROQ_API_KEY'] = os.getenv("GROQ_API_KEY")
-os.environ['LANGSMITH_API_KEY'] = os.getenv("LANGSMITH_API_KEY")
-os.environ['LANGSMITH_PROJECT'] = os.getenv("LANGSMITH_PROJECT")
-os.environ['LANGSMITH_TRACING'] = os.getenv("LANGSMITH_TRACING")
 os.environ['GOOGLE_API_KEY'] = os.getenv("GOOGLE_API_KEY")
 REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = os.getenv("REDIS_PORT")

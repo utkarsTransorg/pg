@@ -8,9 +8,8 @@ from src.sdlccopilot.prompts.prompt_template import prompt_template
 import sys
 
 class QATestingHelper:
-    def __init__(self, gemini_llm, anthropic_llm):
+    def __init__(self, gemini_llm):
         self.gemini_llm = gemini_llm
-        self.anthropic_llm = anthropic_llm
         
     def perform_qa_testing_with_llm(self, test_cases, backend_code):
         try:

@@ -19,7 +19,7 @@ import {
 import type { SDLCPhase } from "../types";
 import { toast } from "sonner";
 import ToastError from "./ToastError";
-
+import logo from "../assets/logo.svg";
 interface Props {
   selectedPhase: SDLCPhase;
   onPhaseSelect: (phase: SDLCPhase) => void;
@@ -28,7 +28,11 @@ interface Props {
   completedPhases: string[];
 }
 
-export const phases: { id: SDLCPhase; icon: React.ElementType; label: string }[] = [
+export const phases: {
+  id: SDLCPhase;
+  icon: React.ElementType;
+  label: string;
+}[] = [
   { id: "requirements", icon: FileText, label: "Requirements" },
   { id: "user-stories", icon: Book, label: "User Stories" },
   { id: "functional-design", icon: Palette, label: "Functional Design" },
@@ -37,11 +41,8 @@ export const phases: { id: SDLCPhase; icon: React.ElementType; label: string }[]
   { id: "backend-coding", icon: Server, label: "Backend Coding" },
   { id: "security", icon: Shield, label: "Security Reviews" },
   { id: "testing", icon: TestTube, label: "Test Cases" },
-  { id: "qa-testing", icon: Bug, label: "QA Testing" },
   { id: "deployment", icon: Upload, label: "Deployment" },
-  { id: "maintenance", icon: Settings, label: "Maintenance" },
 ];
-
 
 const isPhaseUnlocked = (
   phaseId: SDLCPhase,
@@ -50,8 +51,8 @@ const isPhaseUnlocked = (
   const phaseIndex = phases.findIndex((p) => p.id === phaseId);
   if (phaseIndex === 0) return true;
   const previousPhaseId = phases[phaseIndex - 1].id;
-  return completedPhases.includes(previousPhaseId)
-}
+  return completedPhases.includes(previousPhaseId);
+};
 
 export default function SDLCPhaseSelector({
   selectedPhase,
@@ -62,8 +63,9 @@ export default function SDLCPhaseSelector({
 }: Props) {
   return (
     <div
-      className={`h-full bg-gray-900 border-r border-gray-800 transition-all duration-300 ${isCollapsed ? "w-16" : "w-64"
-        }`}
+      className={`h-full bg-gray-900 border-r border-gray-800 transition-all duration-300 ${
+        isCollapsed ? "w-16" : "w-64"
+      }`}
     >
       <button
         onClick={onToggleCollapse}
@@ -72,15 +74,16 @@ export default function SDLCPhaseSelector({
         <span
           className={`text-gray-400 transition-opacity duration-300 text-2xl font-bold`}
         >
-          {isCollapsed ? "" : "SDLC Phases"}
+          {isCollapsed ? "" : <img src={logo} className="h-12" />}
         </span>
         <ChevronLeft
-          className={`w-6 h-6 text-gray-400 transition-transform duration-300 ${isCollapsed ? "rotate-180" : ""
-            }`}
+          className={`w-6 h-6 text-gray-400 transition-transform duration-300 ${
+            isCollapsed ? "rotate-180" : ""
+          }`}
         />
       </button>
 
-      <nav className="">
+      <nav className="mt-10">
         {phases.map(({ id, icon: Icon, label }) => {
           const isCompleted = completedPhases.includes(id);
           const unlocked = isPhaseUnlocked(id, completedPhases);
@@ -96,9 +99,10 @@ export default function SDLCPhaseSelector({
               key={id}
               onClick={() => handleClick()}
               className={`w-full p-4 flex items-center justify-between transition-colors duration-300 
-                ${selectedPhase === id
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-400 hover:bg-gray-800"
+                ${
+                  selectedPhase === id
+                    ? "bg-[#2F4F81] text-white"
+                    : "text-gray-400 hover:bg-gray-800"
                 } ${!unlocked ? "filter blur-xs opacity-50" : ""} `}
             >
               <div className="flex items-center">
@@ -108,12 +112,8 @@ export default function SDLCPhaseSelector({
               {isCompleted && (
                 <CheckCircle className="w-5 h-5 text-green-500" />
               )}
-              {!isCompleted && !unlocked && (
-                <LockIcon className="w-5 h-5" />
-              )}
-              {!isCompleted && unlocked && (
-                <UnlockIcon className="w-5 h-5" />
-              )}
+              {!isCompleted && !unlocked && <LockIcon className="w-5 h-5" />}
+              {!isCompleted && unlocked && <UnlockIcon className="w-5 h-5" />}
             </button>
           );
         })}

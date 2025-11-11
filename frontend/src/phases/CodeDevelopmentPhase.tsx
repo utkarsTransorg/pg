@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { BACKEND_URL } from "../../config"
+import { BACKEND_URL } from "../../config";
 import { FileExplorer } from "../components/FileExplorer";
 import { FilePreview } from "../components/FilePreview";
 import { useInitializeProject } from "../hooks/useInitializeProject";
@@ -20,14 +20,18 @@ interface BuilderProps {
   setFiles: (files: FileItem[]) => void;
 }
 
-export function CodeDevelopmentPhase({ selectedPhase, files, setFiles }: BuilderProps) {
+export function CodeDevelopmentPhase({
+  selectedPhase,
+  files,
+  setFiles,
+}: BuilderProps) {
   useInitializeProject();
 
   const location = useLocation();
   const webContainer = useWebContainer();
   const { task } = location.state as { task: string };
   const data = location.state?.data;
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // const [loading, setLoading] = useState(false);
   // const [templateSet, setTemplateSet] = useState(false);
@@ -55,11 +59,11 @@ export function CodeDevelopmentPhase({ selectedPhase, files, setFiles }: Builder
           mountStructure[file.name] = {
             directory: file.children
               ? Object.fromEntries(
-                file.children.map((child) => [
-                  child.name,
-                  processFile(child, false),
-                ])
-              )
+                  file.children.map((child) => [
+                    child.name,
+                    processFile(child, false),
+                  ])
+                )
               : {},
           };
         } else if (file.type === "file") {
@@ -214,17 +218,17 @@ export function CodeDevelopmentPhase({ selectedPhase, files, setFiles }: Builder
   // }
 
   async function init() {
-    setLoading(true)
+    setLoading(true);
     if (data) {
       try {
         let stepsToSet: Step[] = [];
         let messagesToSet: { role: "user" | "assistant"; content: string }[] = [
           { role: "user", content: task },
-        ]
+        ];
         if (selectedPhase === "frontend-coding") {
           var frontendResponse;
           if (location.state?.["frontend-coding"]?.code) {
-            console.log("frontend-coding inside")
+            console.log("frontend-coding inside");
             frontendResponse = location.state?.["frontend-coding"]?.code;
           } else {
             const response = await axios.post(
@@ -251,16 +255,16 @@ export function CodeDevelopmentPhase({ selectedPhase, files, setFiles }: Builder
           // console.log(frontendResponse.data.code)
         }
         if (selectedPhase === "backend-coding") {
-          var backendResponse
+          var backendResponse;
           if (location.state?.["backend-coding"]?.code) {
-            console.log("backend-coding inside")
+            console.log("backend-coding inside");
             backendResponse = location.state?.["backend-coding"]?.code;
           } else {
             const response = await axios.post(
               `${BACKEND_URL}/code/backend/generate/${data.session_id}`,
               { prompt: task }
             );
-            backendResponse = response.data.code
+            backendResponse = response.data.code;
           }
           // console.log(backendResponse.data.code);
           const backendSteps = parseXml(backendResponse).map((x) => ({
@@ -281,11 +285,10 @@ export function CodeDevelopmentPhase({ selectedPhase, files, setFiles }: Builder
         // console.log(stepsToSet)
         setSteps(stepsToSet);
         setLlmMessages(messagesToSet);
-        setLoading(false)
-
+        setLoading(false);
       } catch (error: any) {
         console.error("Error during code generation", error);
-        setLoading(false)
+        setLoading(false);
         ToastError(error);
       }
     }
@@ -294,7 +297,6 @@ export function CodeDevelopmentPhase({ selectedPhase, files, setFiles }: Builder
   useEffect(() => {
     init();
   }, [selectedPhase, location.state]);
-
 
   if (loading) {
     return <Loading />;
@@ -307,7 +309,11 @@ export function CodeDevelopmentPhase({ selectedPhase, files, setFiles }: Builder
           <FileExplorer files={files} onFileSelect={setSelectedFile} />
         </div>
         <div className="col-span-2 bg-gray-900 rounded-lg shadow-lg h-[calc(100vh-8rem)]">
-          <TabView selectedPhase={selectedPhase} activeTab={activeTab} onTabChange={setActiveTab} />
+          <TabView
+            selectedPhase={selectedPhase}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
           <div className="h-[calc(100%-4rem)]">
             {activeTab === "code" ? (
               <FilePreview selectedFile={selectedFile} />

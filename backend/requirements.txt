@@ -12,4 +12,3 @@ langchain-openai
 redis
 pydantic-settings
 
--e .
