@@ -12,7 +12,7 @@ import { useWebContainer } from "../hooks/useWebContainer";
 import { PreviewFrame } from "../components/PreviewFrame";
 import Loading from "../components/Loading";
 import ToastError from "../components/ToastError";
-// import { Loader } from "lucide-react";
+import { Upload } from "lucide-react";
 
 interface BuilderProps {
   selectedPhase: string;
@@ -33,29 +33,22 @@ export function CodeDevelopmentPhase({
   const data = location.state?.data;
   const [loading, setLoading] = useState(false);
 
-  // const [loading, setLoading] = useState(false);
-  // const [templateSet, setTemplateSet] = useState(false);
   const [steps, setSteps] = useState<Step[]>([]);
-  // const [followUpPrompt, setFollowUpPrompt] = useState("");
   const [llmMessages, setLlmMessages] = useState<
-    {
-      role: "user" | "assistant";
-      content: string;
-    }[]
+    { role: "user" | "assistant"; content: string }[]
   >([]);
-
-  // console.log(llmMessages);
-
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [activeTab, setActiveTab] = useState<"code" | "preview">("code");
+
+  // Popup state for snippet upload
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [snippetContent, setSnippetContent] = useState("");
 
   useEffect(() => {
     const createMountStructure = (files: FileItem[]): Record<string, any> => {
       const mountStructure: Record<string, any> = {};
-
       const processFile = (file: FileItem, isRootFolder: boolean) => {
         if (file.type === "folder") {
-          // For folders, create a directory entry
           mountStructure[file.name] = {
             directory: file.children
               ? Object.fromEntries(
@@ -69,34 +62,20 @@ export function CodeDevelopmentPhase({
         } else if (file.type === "file") {
           if (isRootFolder) {
             mountStructure[file.name] = {
-              file: {
-                contents: file.content || "",
-              },
+              file: { contents: file.content || "" },
             };
           } else {
-            // For files, create a file entry with contents
-            return {
-              file: {
-                contents: file.content || "",
-              },
-            };
+            return { file: { contents: file.content || "" } };
           }
         }
-
         return mountStructure[file.name];
       };
-
-      // Process each top-level file/folder
       files.forEach((file) => processFile(file, true));
       return mountStructure;
     };
 
     const mountStructure = createMountStructure(files);
-    // Mount the structure if WebContainer is available
-    // console.log(mountStructure);
     webContainer?.mount(mountStructure);
-    // console.log("Web container is");
-    // console.log(webContainer);
   }, [files, webContainer]);
 
   useEffect(() => {
@@ -107,20 +86,17 @@ export function CodeDevelopmentPhase({
       .map((step) => {
         updateHappened = true;
         if (step?.type === StepType.CreateFile) {
-          let parsedPath = step.path?.split("/") ?? []; // ["src", "components", "App.tsx"]
-
-          let currentFileStructure = [...originalFiles]; // {}
+          let parsedPath = step.path?.split("/") ?? [];
+          let currentFileStructure = [...originalFiles];
           const finalAnswerRef = currentFileStructure;
-
           let currentFolder = "";
+
           while (parsedPath.length) {
             currentFolder = `${currentFolder}/${parsedPath[0]}`;
             const currentFolderName = parsedPath[0];
-            // console.log(currentFolderName);
             parsedPath = parsedPath.slice(1);
 
             if (!parsedPath.length) {
-              // final file
               const file = currentFileStructure.find(
                 (x) => x.path === currentFolder
               );
@@ -135,12 +111,10 @@ export function CodeDevelopmentPhase({
                 file.content = step.code;
               }
             } else {
-              /// in a folder
               const folder = currentFileStructure.find(
                 (x) => x.path === currentFolder
               );
               if (!folder) {
-                // create the folder
                 currentFileStructure.push({
                   name: currentFolderName,
                   type: "folder",
@@ -148,7 +122,6 @@ export function CodeDevelopmentPhase({
                   children: [],
                 });
               }
-
               currentFileStructure = currentFileStructure.find(
                 (x) => x.path === currentFolder
               )!.children!;
@@ -161,74 +134,21 @@ export function CodeDevelopmentPhase({
     if (updateHappened) {
       setFiles(originalFiles);
       setSteps((steps) =>
-        steps.map((s: Step) => {
-          return {
-            ...s,
-            status: "completed",
-          };
-        })
+        steps.map((s: Step) => ({ ...s, status: "completed" }))
       );
     }
-    // console.log(files);
   }, [steps, files]);
-
-  // async function init() {
-  //   const response = await axios.post(`${BACKEND_URL}/api/template`, {
-  //     prompt: task,
-  //   });
-  //   setTemplateSet(true);
-  //   console.log(response.data);
-  //   const { prompts, uiPrompts } = response.data;
-
-  //   setSteps(
-  //     parseXml(uiPrompts[0]).map((x) => ({
-  //       ...x,
-  //       status: "pending",
-  //     }))
-  //   );
-  //   setLoading(true);
-
-  //   const stepsResponse = await axios.post(`${BACKEND_URL}/api/chat`, {
-  //     messages: [...task, prompts].map((content) => ({
-  //       role: "user",
-  //       content,
-  //     })),
-  //   });
-  //   setLoading(false);
-
-  //   setSteps((s) => [
-  //     ...s,
-  //     ...parseXml(stepsResponse.data.response).map((x) => ({
-  //       ...x,
-  //       status: "pending" as "pending",
-  //     })),
-  //   ]);
-
-  //   setLlmMessages(
-  //     [...prompts, prompt].map((content) => ({
-  //       role: "user",
-  //       content,
-  //     }))
-  //   );
-
-  //   setLlmMessages((x) => [
-  //     ...x,
-  //     { role: "assistant", content: stepsResponse.data.response },
-  //   ]);
-  // }
 
   async function init() {
     setLoading(true);
     if (data) {
       try {
         let stepsToSet: Step[] = [];
-        let messagesToSet: { role: "user" | "assistant"; content: string }[] = [
-          { role: "user", content: task },
-        ];
+        let messagesToSet = [{ role: "user", content: task } as const];
+
         if (selectedPhase === "frontend-coding") {
-          var frontendResponse;
+          let frontendResponse;
           if (location.state?.["frontend-coding"]?.code) {
-            console.log("frontend-coding inside");
             frontendResponse = location.state?.["frontend-coding"]?.code;
           } else {
             const response = await axios.post(
@@ -237,27 +157,18 @@ export function CodeDevelopmentPhase({
             );
             frontendResponse = response.data.code;
           }
-
-          // console.log(frontendResponse.data.code)
-
           const frontendSteps = parseXml(frontendResponse).map((x) => ({
             ...x,
-            status: "pending" as "pending",
-            code_type: "frontend" as "frontend",
+            status: "pending" as const,
+            code_type: "frontend",
           }));
-          // console.log(frontendSteps)
-
           stepsToSet = frontendSteps;
-          messagesToSet.push({
-            role: "assistant",
-            content: frontendResponse,
-          });
-          // console.log(frontendResponse.data.code)
+          messagesToSet.push({ role: "assistant", content: frontendResponse });
         }
+
         if (selectedPhase === "backend-coding") {
-          var backendResponse;
+          let backendResponse;
           if (location.state?.["backend-coding"]?.code) {
-            console.log("backend-coding inside");
             backendResponse = location.state?.["backend-coding"]?.code;
           } else {
             const response = await axios.post(
@@ -266,23 +177,15 @@ export function CodeDevelopmentPhase({
             );
             backendResponse = response.data.code;
           }
-          // console.log(backendResponse.data.code);
           const backendSteps = parseXml(backendResponse).map((x) => ({
             ...x,
-            status: "pending" as "pending",
-            code_type: "backend" as "backend",
+            status: "pending" as const,
+            code_type: "backend",
           }));
-
-          // console.log(backendSteps)
-
           stepsToSet = backendSteps;
-          messagesToSet.push({
-            role: "assistant",
-            content: backendResponse,
-          });
-          // console.log(backendResponse.data.code)
+          messagesToSet.push({ role: "assistant", content: backendResponse });
         }
-        // console.log(stepsToSet)
+
         setSteps(stepsToSet);
         setLlmMessages(messagesToSet);
         setLoading(false);
@@ -298,16 +201,78 @@ export function CodeDevelopmentPhase({
     init();
   }, [selectedPhase, location.state]);
 
-  if (loading) {
-    return <Loading />;
-  }
+  // 🧠 Debug Upload: File
+  const handleDebugUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      setFiles((prev) => [
+        ...prev,
+        {
+          name: file.name,
+          type: "file",
+          path: `/${file.name}`,
+          content: text,
+        },
+      ]);
+      setSelectedFile({
+        name: file.name,
+        type: "file",
+        path: `/${file.name}`,
+        content: text,
+      });
+      ToastError("Debug file loaded successfully!");
+    } catch {
+      ToastError("Failed to load debug file");
+    }
+  };
+
+  // 🧠 Debug Upload: Snippet
+  const handleSnippetSave = () => {
+    if (!snippetContent.trim()) {
+      ToastError("Snippet is empty");
+      return;
+    }
+    const fileName = `debug-snippet-${Date.now()}.ts`;
+    const fileItem: FileItem = {
+      name: fileName,
+      type: "file",
+      path: `/${fileName}`,
+      content: snippetContent,
+    };
+    setFiles((prev) => [...prev, fileItem]);
+    setSelectedFile(fileItem);
+    setIsModalOpen(false);
+    setSnippetContent("");
+    ToastError("Snippet added successfully!");
+  };
+
+  if (loading) return <Loading />;
 
   return (
     <div className="flex-1 overflow-hidden">
       <div className="h-full grid grid-cols-3 gap-6 p-6">
-        <div className="col-span-1">
+        {/* LEFT PANEL */}
+        <div className="col-span-1 flex flex-col space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-300">
+              Project Files
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-sm text-white rounded-lg"
+              >
+                Debug
+              </button>
+            </div>
+          </div>
+
           <FileExplorer files={files} onFileSelect={setSelectedFile} />
         </div>
+
+        {/* RIGHT PANEL */}
         <div className="col-span-2 bg-gray-900 rounded-lg shadow-lg h-[calc(100vh-8rem)]">
           <TabView
             selectedPhase={selectedPhase}
@@ -323,6 +288,37 @@ export function CodeDevelopmentPhase({
           </div>
         </div>
       </div>
+
+      {/* 🧩 MODAL FOR SNIPPET INPUT */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50">
+          <div className="bg-gray-800 p-6 rounded-xl w-[600px] shadow-lg border border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-200 mb-4">
+              Paste Your Code Snippet
+            </h2>
+            <textarea
+              className="w-full h-60 bg-gray-900 text-gray-100 p-3 rounded-md border border-gray-700 resize-none"
+              placeholder="Paste your code snippet here..."
+              value={snippetContent}
+              onChange={(e) => setSnippetContent(e.target.value)}
+            />
+            <div className="flex justify-end mt-4 gap-3">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSnippetSave}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white"
+              >
+                Add Snippet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

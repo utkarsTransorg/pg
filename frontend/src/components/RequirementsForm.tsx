@@ -39,7 +39,7 @@ export default function RequirementsForm({ onSubmit }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-5xl">
+    <form onSubmit={handleSubmit} className="space-y-6 w-full max-w-7xl">
       <div>
         <label
           htmlFor="title"
